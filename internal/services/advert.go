@@ -225,7 +225,7 @@ func ResolveAdsFromAds(ads []models.Ad) ResolvedAds {
 					ShowOn:     ad.Content.ShowOn,
 				})
 			}
-		case "script":
+		case "script", "javascript":
 			if ad.Content.Script != nil && *ad.Content.Script != "" {
 				result.AdJavascripts = append(result.AdJavascripts, *ad.Content.Script)
 			}

@@ -52,7 +52,7 @@ func SyncSettings() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	settingNames := []string{"player_maintenance", "advert_hobby", "advert_vdo", "advert_image", "advert_javascript"}
+	settingNames := []string{"player_maintenance", "advert_hobby"}
 	cursor, err := database.Settings().Find(ctx, bson.M{
 		"name": bson.M{"$in": settingNames},
 	})
@@ -190,15 +190,17 @@ func StartSettingSyncScheduler(ctx context.Context) {
 		log.Printf("⚠️ Failed to sync ads: %v", err)
 	}
 
-	ticker := time.NewTicker(1 * time.Minute)
-	defer ticker.Stop()
-
 	for {
+		// Calculate time until the next exact minute (00 second)
+		now := time.Now()
+		next := now.Truncate(time.Minute).Add(time.Minute)
+		duration := time.Until(next)
+
 		select {
 		case <-ctx.Done():
 			log.Println("⏹️ Settings sync scheduler stopped")
 			return
-		case <-ticker.C:
+		case <-time.After(duration):
 			if err := SyncSettings(); err != nil {
 				log.Printf("⚠️ Failed to sync settings: %v", err)
 			}
@@ -214,4 +216,3 @@ func StartSettingSyncScheduler(ctx context.Context) {
 		}
 	}
 }
-

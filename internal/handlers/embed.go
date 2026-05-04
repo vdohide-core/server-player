@@ -281,6 +281,59 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 
 	ads := services.ResolveAdsFromPlan(planType, spaceID)
 
+	// ── Filter ads by domain.Ads whitelist ─────────────────────────────
+	// When a domain has an Ads config, it acts as a whitelist:
+	//   - domain.Ads.Video  → only show video ads with these IDs (empty = no video ads)
+	//   - domain.Ads.Image  → only show image ads with these IDs (empty/nil = no image ads)
+	//   - domain.Ads.Script → only show script ads with these IDs (empty/nil = no script ads)
+	// If domain.Ads is nil, all resolved ads pass through (no filtering).
+	if domain != nil && domain.Ads != nil {
+		// Filter image ads: only keep ads whose ID is in domain.Ads.Image
+		if len(domain.Ads.Image) > 0 {
+			var filteredImages []services.AdvertImageConfig
+			for _, id := range domain.Ads.Image {
+				ad := services.FindAdByID(id)
+				if ad != nil && ad.Type == "image" && ad.Content != nil &&
+					ad.Content.ImageURL != nil && *ad.Content.ImageURL != "" {
+					websiteUrl := ""
+					if ad.Content.WebsiteURL != nil {
+						websiteUrl = *ad.Content.WebsiteURL
+					}
+					filteredImages = append(filteredImages, services.AdvertImageConfig{
+						ImageUrl:   *ad.Content.ImageURL,
+						WebsiteUrl: websiteUrl,
+						ShowOn:     ad.Content.ShowOn,
+					})
+				}
+			}
+			ads.AdvertImages = filteredImages
+		} else {
+			// domain.Ads exists but Image is empty/nil → no image ads
+			ads.AdvertImages = nil
+		}
+
+		// Filter script ads: only keep ads whose ID is in domain.Ads.Script
+		if len(domain.Ads.Script) > 0 {
+			var filteredScripts []string
+			for _, id := range domain.Ads.Script {
+				ad := services.FindAdByID(id)
+				if ad != nil && (ad.Type == "script" || ad.Type == "javascript") && ad.Content != nil &&
+					ad.Content.Script != nil && *ad.Content.Script != "" {
+					filteredScripts = append(filteredScripts, *ad.Content.Script)
+				}
+			}
+			ads.AdJavascripts = filteredScripts
+		} else {
+			// domain.Ads exists but Script is empty/nil → no script ads
+			ads.AdJavascripts = nil
+		}
+
+		// Filter video ads: if domain.Ads.Video is empty → disable VAST
+		if len(domain.Ads.Video) == 0 {
+			ads.VastEnabled = false
+		}
+	}
+
 	// Apply resolved ads to player config
 	// Hobby plan → /vast/hobby.xml
 	// Paid plan with domain → /vast/{domainSlug}.xml (if domain has video ads)
@@ -288,9 +341,7 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 		if planType == "" || planType == models.PlanTypeHobby {
 			playerConfig.VastURL = "/vast/hobby.xml"
 		} else if domain != nil && domain.Slug != "" {
-			if domain.Ads == nil || len(domain.Ads.Video) > 0 {
-				playerConfig.VastURL = fmt.Sprintf("/vast/%s.xml", domain.Slug)
-			}
+			playerConfig.VastURL = fmt.Sprintf("/vast/%s.xml", domain.Slug)
 		}
 	}
 	playerConfig.AdvertImages = ads.AdvertImages
