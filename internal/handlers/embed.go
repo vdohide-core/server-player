@@ -198,13 +198,30 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 	if r.TLS != nil {
 		reqProto = "https"
 	}
+	
 	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
-		reqProto = proto
+		if strings.Contains(strings.ToLower(proto), "https") {
+			reqProto = "https"
+		} else {
+			reqProto = "http"
+		}
+	} else if cfVisitor := r.Header.Get("CF-Visitor"); strings.Contains(cfVisitor, `"scheme":"https"`) {
+		reqProto = "https"
+	} else if r.Header.Get("X-Forwarded-Ssl") == "on" || r.Header.Get("X-Forwarded-Scheme") == "https" || r.Header.Get("X-Url-Scheme") == "https" {
+		reqProto = "https"
 	}
 
 	getProtocol := func(host string) string {
-		if strings.HasPrefix(host, "localhost") || strings.HasPrefix(host, "127.0.0.1") {
+		if strings.HasPrefix(host, "localhost") || strings.HasPrefix(host, "127.0.0.1") || strings.HasPrefix(host, "192.168.") || strings.HasPrefix(host, "10.") {
 			return "http"
+		}
+		// Force HTTPS for external domains (like CDNs) to prevent Mixed Content
+		if host != r.Host {
+			return "https"
+		}
+		// Force HTTPS for public domains (no port specified) even if headers were missing
+		if reqProto == "http" && !strings.Contains(host, ":") {
+			return "https"
 		}
 		return reqProto
 	}
