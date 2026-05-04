@@ -980,7 +980,7 @@ class PlayerSetup {
         schedule: [
           {
             offset: "pre",
-            tag: `${window.location.origin}${config.vastUrl}`,
+            tag: config.vastUrl.startsWith("http") || config.vastUrl.startsWith("//") ? config.vastUrl : `${window.location.origin}${config.vastUrl}`,
             type: "linear",
           },
         ],

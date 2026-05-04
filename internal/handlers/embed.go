@@ -189,15 +189,28 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ─── Step 7: Build content URL (playlist) ─────────────────────────
-	contentHost := services.GetDomainContent(ctx)
-	if contentHost == "" {
-		contentHost = r.Host
+	// ─── Step 7: Build content URLs ─────────────────────────
+	playlistHost := services.GetDomainPlaylist(r.Host)
+	adsHost := services.GetDomainAds(r.Host)
+	previewHost := services.GetDomainPreview()
+
+	reqProto := "http"
+	if r.TLS != nil {
+		reqProto = "https"
 	}
-	protocol := "https"
-	if strings.HasPrefix(contentHost, "localhost") || strings.HasPrefix(contentHost, "127.0.0.1") {
-		protocol = "http"
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		reqProto = proto
 	}
+
+	getProtocol := func(host string) string {
+		if strings.HasPrefix(host, "localhost") || strings.HasPrefix(host, "127.0.0.1") {
+			return "http"
+		}
+		return reqProto
+	}
+
+	playlistProtocol := getProtocol(playlistHost)
+	adsProtocol := getProtocol(adsHost)
 
 	// ─── Step 8: Find poster image ─────────────────────────────────────
 	posterURL := ""
@@ -217,7 +230,7 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	playlistURL := protocol + "://" + contentHost + "/" + slug + "/playlist.m3u8"
+	playlistURL := playlistProtocol + "://" + playlistHost + "/" + slug + "/playlist.m3u8"
 
 	// Fallback poster from content server thumbnail
 	if posterURL == "" {
@@ -225,7 +238,12 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 		if file.Metadata != nil && file.Metadata.Duration != nil {
 			thumbTime = int(*file.Metadata.Duration / 2)
 		}
-		posterURL = protocol + "://" + contentHost + "/thumb/" + slug + "/" + fmt.Sprintf("%d", thumbTime) + ".jpg"
+		if previewHost != "" {
+			previewProtocol := getProtocol(previewHost)
+			posterURL = previewProtocol + "://" + previewHost + "/thumb/" + slug + "/" + fmt.Sprintf("%d", thumbTime) + ".jpg"
+		} else {
+			posterURL = "/thumb/" + slug + "/" + fmt.Sprintf("%d", thumbTime) + ".jpg"
+		}
 	}
 
 	// ─── Step 8.5: Find thumbnail sprite VTT ──────────────────────────
@@ -237,7 +255,12 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 		"deletedAt": nil,
 	}).Decode(&thumbMedia)
 	if tErr == nil {
-		spriteVttURL = protocol + "://" + contentHost + "/" + slug + "/sprite/sprite.vtt"
+		if previewHost != "" {
+			previewProtocol := getProtocol(previewHost)
+			spriteVttURL = previewProtocol + "://" + previewHost + "/" + slug + "/sprite/sprite.vtt"
+		} else {
+			spriteVttURL = "/" + slug + "/sprite/sprite.vtt"
+		}
 	}
 
 	// ─── Step 9: Build player config ──────────────────────────────────
@@ -338,10 +361,11 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 	// Hobby plan → /vast/hobby.xml
 	// Paid plan with domain → /vast/{domainSlug}.xml (if domain has video ads)
 	if ads.VastEnabled {
+		adsBaseUrl := adsProtocol + "://" + adsHost
 		if planType == "" || planType == models.PlanTypeHobby {
-			playerConfig.VastURL = "/vast/hobby.xml"
+			playerConfig.VastURL = adsBaseUrl + "/vast/hobby.xml"
 		} else if domain != nil && domain.Slug != "" {
-			playerConfig.VastURL = fmt.Sprintf("/vast/%s.xml", domain.Slug)
+			playerConfig.VastURL = adsBaseUrl + fmt.Sprintf("/vast/%s.xml", domain.Slug)
 		}
 	}
 	playerConfig.AdvertImages = ads.AdvertImages

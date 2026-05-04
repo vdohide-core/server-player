@@ -103,29 +103,36 @@
     var batch = urls.slice(idx, idx + CONCURRENT);
     var batchParsed = parsedList.slice(idx, idx + CONCURRENT);
     var promises = batch.map(function(url, bIdx) {
+      var p = batchParsed[bIdx];
+      // Skip if we already learned this segment doesn't exist
+      if (p && isPastEnd(p.base, p.num)) {
+        return Promise.resolve();
+      }
+
       warmed[url] = true;
       return fetch(url, {
         method: "HEAD",
-        mode: "no-cors",
+        mode: "cors",
         signal: abort.signal,
         priority: "low"  // hint browser to prioritize player requests
       }).then(function(resp) {
-        // mode:"no-cors" gives opaque response (status=0, type="opaque")
-        // A successful opaque response means the server responded (even if we can't read status).
-        // A network error / DNS failure will throw → caught below.
-        // For same-origin or CORS-enabled, we can check status directly:
-        if (resp.type !== "opaque" && !resp.ok) {
-          var p = batchParsed[bIdx];
+        // With mode:"cors", we can read resp.ok
+        // If segment is 404, mark ceiling to stop fetching further
+        if (!resp.ok) {
+          delete warmed[url];
           if (p) markCeiling(p.base, p.num);
+          abort.abort(); // Immediately cancel other requests in this batch sequence
         }
-      }).catch(function() {
+      }).catch(function(err) {
+        if (err.name === 'AbortError') return;
+        delete warmed[url];
         // Network error — likely 404 or server refused. Mark ceiling.
-        var p = batchParsed[bIdx];
         if (p) markCeiling(p.base, p.num);
+        abort.abort();
       });
     });
     Promise.all(promises).then(function() {
-      // If aborted, stop
+      // If aborted, stop the chain completely
       if (abort.signal.aborted) return;
       if (idx + CONCURRENT < urls.length) {
         setTimeout(function() {
@@ -161,6 +168,12 @@
     if (!parsed) return;
 
     var segNum = parsed.num;
+
+    // If the player fetches a segment at or beyond our known "end",
+    // it means the previous 404/error was transient. Clear the ceiling to resume.
+    if (maxSegCeiling[parsed.base] && segNum >= maxSegCeiling[parsed.base]) {
+      delete maxSegCeiling[parsed.base];
+    }
 
     // ─── Resolution switch detection ─────────────────────────
     // Detect when the base URL changes (different resolution stream)

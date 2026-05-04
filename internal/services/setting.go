@@ -1,15 +1,9 @@
 package services
 
 import (
-	"context"
 	"encoding/json"
 	"log"
 	"os"
-
-	"server-player/internal/db/database"
-	"server-player/internal/db/models"
-
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // ReadSettingFile reads and parses conf/setting.json.
@@ -28,31 +22,53 @@ func ReadSettingFile() (map[string]json.RawMessage, error) {
 
 // ─── Database Setting Helpers ─────────────────────────────────────────
 
-// GetDomainContent fetches the domain_content setting from database.
-// Used to determine the content server hostname for playlist URLs.
-func GetDomainContent(ctx context.Context) string {
-	var setting models.Setting
-	err := database.Settings().FindOne(ctx, bson.M{"name": "domain_content"}).Decode(&setting)
+// getStringSetting is a helper to read a string setting from conf/setting.json
+func getStringSetting(key string) string {
+	settings, err := ReadSettingFile()
 	if err != nil {
 		return ""
 	}
-	if domainStr, ok := setting.Value.(string); ok && domainStr != "" {
-		return domainStr
+	raw, exists := settings[key]
+	if !exists {
+		return ""
 	}
-	return ""
+	var val string
+	if err := json.Unmarshal(raw, &val); err != nil {
+		return ""
+	}
+	return val
 }
 
-// GetDomainAsset fetches the domain_asset setting from database.
-func GetDomainAsset(ctx context.Context) string {
-	var setting models.Setting
-	err := database.Settings().FindOne(ctx, bson.M{"name": "domain_asset"}).Decode(&setting)
-	if err != nil {
-		return ""
+// GetDomainContent fetches the domain_content setting. Fallbacks to fallbackHost.
+func GetDomainContent(fallbackHost string) string {
+	val := getStringSetting("domain_content")
+	if val != "" {
+		return val
 	}
-	if domainStr, ok := setting.Value.(string); ok && domainStr != "" {
-		return domainStr
+	return fallbackHost
+}
+
+// GetDomainPlaylist fetches the domain_playlist setting. Fallbacks to domain_content, then fallbackHost.
+func GetDomainPlaylist(fallbackHost string) string {
+	val := getStringSetting("domain_playlist")
+	if val != "" {
+		return val
 	}
-	return ""
+	return GetDomainContent(fallbackHost)
+}
+
+// GetDomainAds fetches the domain_ads setting. Fallbacks to domain_content, then fallbackHost.
+func GetDomainAds(fallbackHost string) string {
+	val := getStringSetting("domain_ads")
+	if val != "" {
+		return val
+	}
+	return GetDomainContent(fallbackHost)
+}
+
+// GetDomainPreview fetches the domain_preview setting. Returns empty if not set.
+func GetDomainPreview() string {
+	return getStringSetting("domain_preview")
 }
 
 // unused log helper

@@ -52,7 +52,7 @@ func SyncSettings() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	settingNames := []string{"player_maintenance", "advert_hobby"}
+	settingNames := []string{"player_maintenance", "advert_hobby", "domain_content", "domain_preview", "domain_ads", "domain_playlist"}
 	cursor, err := database.Settings().Find(ctx, bson.M{
 		"name": bson.M{"$in": settingNames},
 	})
