@@ -39,6 +39,14 @@ func spacesFilePath() string {
 	return filepath.Join(exe, "conf", "spaces.json")
 }
 
+func adsFilePath() string {
+	exe, err := executableDir()
+	if err != nil {
+		return filepath.Join("conf", "ads.json")
+	}
+	return filepath.Join(exe, "conf", "ads.json")
+}
+
 // ─── Domain Cache ─────────────────────────────────────────────────────
 
 var (
@@ -89,16 +97,33 @@ func LoadDomains(domains []models.CustomDomain) {
 	log.Printf("📋 Loaded %d custom domains → conf/domains.json", len(cache))
 }
 
+// FindDomainBySlug looks up a domain by slug from the in-memory cache.
+func FindDomainBySlug(slug string) *models.CustomDomain {
+	if slug == "" {
+		return nil
+	}
+
+	domainCacheMu.RLock()
+	defer domainCacheMu.RUnlock()
+
+	for _, d := range domainCache {
+		if d.Slug == slug {
+			return d
+		}
+	}
+	return nil
+}
+
 // ─── Space Cache ──────────────────────────────────────────────────────
 
 var (
-	spaceCache   map[string]*models.File // spaceId → File
+	spaceCache   map[string]*models.Workspace // spaceId → Workspace
 	spaceCacheMu sync.RWMutex
 )
 
-// FindSpace looks up a space (File type=space) by its ID from the in-memory cache.
+// FindSpace looks up a space (Workspace) by its ID from the in-memory cache.
 // Returns nil if not found.
-func FindSpace(spaceID string) *models.File {
+func FindSpace(spaceID string) *models.Workspace {
 	if spaceID == "" {
 		return nil
 	}
@@ -109,9 +134,9 @@ func FindSpace(spaceID string) *models.File {
 	return spaceCache[spaceID]
 }
 
-// LoadSpaces loads space-type Files into the in-memory cache
-func LoadSpaces(spaces []models.File) {
-	cache := make(map[string]*models.File, len(spaces))
+// LoadSpaces loads Workspaces into the in-memory cache
+func LoadSpaces(spaces []models.Workspace) {
+	cache := make(map[string]*models.Workspace, len(spaces))
 	for i := range spaces {
 		cache[spaces[i].ID] = &spaces[i]
 	}
@@ -124,7 +149,7 @@ func LoadSpaces(spaces []models.File) {
 }
 
 // GetSpacePlan returns the plan for a space, nil if not found or no plan.
-func GetSpacePlan(spaceID string) *models.SpacePlan {
+func GetSpacePlan(spaceID string) *models.WorkspacePlan {
 	space := FindSpace(spaceID)
 	if space == nil {
 		return nil
@@ -202,25 +227,6 @@ func BuildPlayerConfigFromDomain(
 				config.WatermarkPosition = *p.LogoPosition
 			}
 			config.WatermarkOpacity = 50
-		}
-	}
-
-	// VAST — check active video adverts
-	for _, ad := range domain.Advert {
-		if ad.IsActive != nil && *ad.IsActive {
-			config.Vast = true
-			break
-		}
-	}
-
-	// AdvertImage
-	if domain.AdvertImage != nil &&
-		domain.AdvertImage.IsActive != nil && *domain.AdvertImage.IsActive &&
-		domain.AdvertImage.ImageURL != nil && *domain.AdvertImage.ImageURL != "" {
-		config.AdvertImage = &AdvertImageConfig{
-			ImageUrl:   *domain.AdvertImage.ImageURL,
-			WebsiteUrl: DerefStr(domain.AdvertImage.WebsiteURL),
-			ShowOn:     domain.AdvertImage.ShowOn,
 		}
 	}
 

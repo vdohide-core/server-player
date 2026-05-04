@@ -971,7 +971,7 @@ class PlayerSetup {
       };
     }
 
-    if (config.vast) {
+    if (config.vastUrl) {
       baseConfig.advertising = {
         client: "vast",
         outstream: false,
@@ -980,7 +980,7 @@ class PlayerSetup {
         schedule: [
           {
             offset: "pre",
-            tag: `${window.location.origin}/vast.xml`,
+            tag: `${window.location.origin}${config.vastUrl}`,
             type: "linear",
           },
         ],
@@ -1113,6 +1113,9 @@ class PlayerSetup {
       return;
     }
 
+    // ── Disable VAST ads on fallback to prevent re-loading video ads ──
+    delete config.vastUrl;
+
     // ดึง path จาก playlistUrl เดิม แล้วใช้ fallbackDomain แทน
     try {
       const originalUrl = new URL(config.playlistUrl);
@@ -1123,13 +1126,14 @@ class PlayerSetup {
 
       console.log(`🔄 Trying fallback: ${fallbackUrl}`);
 
+      // Load with per-item adschedule override to disable ads on retry
       this.player.load([{
         file: fallbackUrl,
         type: "application/vnd.apple.mpegurl",
-        image: fallbackImage
+        image: fallbackImage,
+        adschedule: []
       }]);
 
-      // this.player.play();
     } catch (e) {
       console.error("Fallback URL construction failed:", e);
     }

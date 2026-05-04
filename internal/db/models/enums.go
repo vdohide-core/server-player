@@ -18,6 +18,36 @@ const (
 	WorkspaceMemberRoleViewer = "viewer"
 )
 
+// ─── Workspace Statuses ─────────────────────────────────────────────
+
+const (
+	WorkspaceStatusPending  = "pending"
+	WorkspaceStatusActive   = "active"
+	WorkspaceStatusArchived = "archived"
+	WorkspaceStatusClosed   = "closed"
+	WorkspaceStatusDeleted  = "deleted"
+	WorkspaceStatusSuspend  = "suspend"
+)
+
+// ─── Member Statuses ────────────────────────────────────────────────
+
+const (
+	MemberStatusPending  = "pending"
+	MemberStatusActive   = "active"
+	MemberStatusRejected = "rejected"
+	MemberStatusRemoved  = "removed"
+	MemberStatusLeft     = "left"
+)
+
+// ─── Plan Types ─────────────────────────────────────────────────────
+
+const (
+	PlanTypeHobby      = "hobby"
+	PlanTypePro        = "pro"
+	PlanTypeBusiness   = "business"
+	PlanTypeEnterprise = "enterprise"
+)
+
 // ─── File Types ──────────────────────────────────────────────────────
 
 const (

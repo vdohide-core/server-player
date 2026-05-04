@@ -38,6 +38,11 @@ func (h *Handler) HandlePlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !CheckDomainSpace(r, file.SpaceID) {
+		HandleNotFound(w, r)
+		return
+	}
+
 	// ─── Step 2: Find all video media for this file ──────────────────────
 	mediaFilter := bson.M{
 		"fileId":     file.ID,

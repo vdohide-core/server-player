@@ -41,6 +41,19 @@ func (h *Handler) HandleVideo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ─── Step 1b: Domain space check via parent File ─────────────────────
+	var spaceID *string
+	if media.FileID != nil && *media.FileID != "" {
+		var file models.File
+		if fErr := database.Files().FindOne(ctx, bson.M{"_id": *media.FileID}).Decode(&file); fErr == nil {
+			spaceID = file.SpaceID
+		}
+	}
+	if !CheckDomainSpace(r, spaceID) {
+		HandleNotFound(w, r)
+		return
+	}
+
 	// ─── Step 2: Find storage ────────────────────────────────────────────
 	storageID := ""
 	if media.StorageID != nil {

@@ -64,6 +64,11 @@ func (h *Handler) StreamFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !CheckDomainSpace(r, file.SpaceID) {
+		sendNotFound(w, r, http.StatusNotFound)
+		return
+	}
+
 	// ─── Step 2: Find media by fileId == file._id ────────────────────────
 	mediaFilter := bson.M{
 		"fileId":    file.ID,

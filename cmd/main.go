@@ -75,8 +75,8 @@ func main() {
 	// Route: /embed/{fileSlug} — Video player embed page
 	mux.HandleFunc("/embed/", h.Embed)
 
-	// Route: /vast.xml — VAST 3.0 ad tag
-	mux.HandleFunc("/vast.xml", h.Vast)
+	// Route: /vast/{domainSlug}.xml — VAST 3.0 ad tag by domain slug
+	mux.HandleFunc("/vast/", h.Vast)
 
 	// ─── Static file server from embedded FS ──────────────────────────────
 	staticFS := handlers.GetStaticFS()
@@ -147,7 +147,7 @@ func main() {
 	log.Printf("🌐 Server listening on http://localhost:%s", port)
 	log.Printf("📍 Endpoints:")
 	log.Printf("   GET /embed/{fileSlug}          - Video player embed page")
-	log.Printf("   GET /vast.xml                  - VAST 3.0 ad tag")
+	log.Printf("   GET /vast/{domainSlug}.xml      - VAST 3.0 ad tag")
 	log.Printf("   GET /health                    - Health check")
 	log.Printf("   GET /logs                      - Log file list")
 	log.Printf("   GET /logs/{file}               - Log file reader")

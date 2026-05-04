@@ -11,32 +11,79 @@ import (
 	"server-player/internal/services"
 )
 
-// Vast handles GET /vast.xml — generates VAST 3.0 XML from advert settings
+// Vast handles GET /vast/{domainSlug}.xml — generates VAST 3.0 XML from ads
 func (h *Handler) Vast(w http.ResponseWriter, r *http.Request) {
-	// ── Check domain-level ads from r.Host ──
-	domain, found := services.FindDomain(r.Host)
-	if found && domain != nil && domain.Enable && domain.Status == "active" && len(domain.Advert) > 0 {
-		buildDomainVast(w, domain)
-		return
-	}
+	// ── Extract slug from path: /vast/{slug}.xml ──
+	path := strings.TrimPrefix(r.URL.Path, "/vast/")
+	slug := strings.TrimSuffix(path, ".xml")
 
-	// ── Fallback: global advert_vdo settings ──
-	items := services.GetAdvertVdo()
-
-	if len(items) == 0 {
+	if slug == "" {
 		writeEmptyVast(w)
 		return
 	}
 
-	// Build VAST XML with active ads only
+	// ── Special case: hobby plan ads ──
+	if slug == "hobby" {
+		hobby := services.GetAdvertHobby()
+		if len(hobby.Vdo) == 0 {
+			writeEmptyVast(w)
+			return
+		}
+		// Build VAST from hobby vdo items
+		buildHobbyVast(w, hobby.Vdo)
+		return
+	}
+
+	// ── Find domain by slug ──
+	domain := services.FindDomainBySlug(slug)
+	if domain == nil || !domain.Enable || domain.Status != "active" {
+		writeEmptyVast(w)
+		return
+	}
+
+	// ── Check if domain has video ads configured ──
+	if domain.Ads != nil && len(domain.Ads.Video) == 0 {
+		writeEmptyVast(w)
+		return
+	}
+
+	// ── Resolve ads from domain's space ──
+	if domain.SpaceID != nil && *domain.SpaceID != "" {
+		ads := services.FindAdsBySpaceID(*domain.SpaceID)
+		if len(ads) > 0 {
+			buildAdsVast(w, ads)
+			return
+		}
+	}
+
+	// Domain has ads config but no matching ads found → empty
+	writeEmptyVast(w)
+}
+
+// buildHobbyVast builds VAST XML from hobby Ad IDs.
+func buildHobbyVast(w http.ResponseWriter, adIDs []string) {
 	var ads strings.Builder
-	for _, ad := range items {
-		if !ad.IsActive {
+	hasActive := false
+
+	for _, adID := range adIDs {
+		ad := services.FindAdByID(adID)
+		if ad == nil || ad.Content == nil || ad.Content.MP4URL == nil || *ad.Content.MP4URL == "" {
 			continue
 		}
+		hasActive = true
 
-		adID := randomID(10)
-		skipOffset := fmt.Sprintf("00:00:%02d", ad.SkipSeconds)
+		vastID := randomID(10)
+		skipSeconds := 5
+		if ad.Content.SkipSeconds != nil {
+			skipSeconds = *ad.Content.SkipSeconds
+		}
+		skipOffset := fmt.Sprintf("00:00:%02d", skipSeconds)
+
+		name := ad.Name
+		websiteUrl := ""
+		if ad.Content.WebsiteURL != nil {
+			websiteUrl = *ad.Content.WebsiteURL
+		}
 
 		ads.WriteString(fmt.Sprintf(`
     <Ad id="%s" sequence="0">
@@ -64,7 +111,12 @@ func (h *Handler) Vast(w http.ResponseWriter, r *http.Request) {
           <Creative> </Creative>
         </Creatives>
       </InLine>
-    </Ad>`, adID, html.EscapeString(ad.Name), skipOffset, html.EscapeString(ad.WebsiteUrl), adID, html.EscapeString(ad.MP4Url)))
+    </Ad>`, vastID, html.EscapeString(name), skipOffset, html.EscapeString(websiteUrl), vastID, html.EscapeString(*ad.Content.MP4URL)))
+	}
+
+	if !hasActive {
+		writeEmptyVast(w)
+		return
 	}
 
 	vast := fmt.Sprintf(`<?xml version="1.0"?>
@@ -98,33 +150,37 @@ func randomID(n int) string {
 	return string(b)
 }
 
-// buildDomainVast builds VAST XML from domain-level advert config.
-// Adapted for new pointer-field models.
-func buildDomainVast(w http.ResponseWriter, domain *models.CustomDomain) {
+// buildAdsVast builds VAST XML from new Ad model entries.
+func buildAdsVast(w http.ResponseWriter, adList []models.Ad) {
 	var ads strings.Builder
 	hasActive := false
 
-	for _, ad := range domain.Advert {
-		// Pointer-safe active check
-		if ad.IsActive == nil || !*ad.IsActive {
+	for _, ad := range adList {
+		if ad.Type != "video" || ad.Content == nil {
 			continue
 		}
-		if ad.MP4URL == nil || *ad.MP4URL == "" {
+		if ad.Content.MP4URL == nil || *ad.Content.MP4URL == "" {
 			continue
 		}
 		hasActive = true
 
 		adID := randomID(10)
-		skipOffset := fmt.Sprintf("00:00:%02d", ad.SkipSeconds)
+		skipSeconds := 0
+		if ad.Content.SkipSeconds != nil {
+			skipSeconds = *ad.Content.SkipSeconds
+		}
+		skipOffset := fmt.Sprintf("00:00:%02d", skipSeconds)
 
-		name := ""
-		if ad.Name != nil {
-			name = *ad.Name
-		}
 		websiteURL := ""
-		if ad.WebsiteURL != nil {
-			websiteURL = *ad.WebsiteURL
+		if ad.Content.WebsiteURL != nil {
+			websiteURL = *ad.Content.WebsiteURL
 		}
+
+		placement := "pre_roll"
+		if ad.Content.Placement != nil {
+			placement = *ad.Content.Placement
+		}
+		_ = placement // reserved for future VAST placement logic
 
 		ads.WriteString(fmt.Sprintf(`
     <Ad id="%s" sequence="0">
@@ -152,7 +208,7 @@ func buildDomainVast(w http.ResponseWriter, domain *models.CustomDomain) {
           <Creative> </Creative>
         </Creatives>
       </InLine>
-    </Ad>`, adID, html.EscapeString(name), skipOffset, html.EscapeString(websiteURL), adID, html.EscapeString(*ad.MP4URL)))
+    </Ad>`, adID, html.EscapeString(ad.Name), skipOffset, html.EscapeString(websiteURL), adID, html.EscapeString(*ad.Content.MP4URL)))
 	}
 
 	if !hasActive {

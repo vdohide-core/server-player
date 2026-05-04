@@ -3,7 +3,53 @@ package services
 import (
 	"encoding/json"
 	"log"
+	"sync"
+
+	"server-player/internal/db/models"
 )
+
+// ─── Advert Hobby (advert_hobby) ─────────────────────────────────────
+
+// AdvertHobby represents the advert_hobby setting value.
+// Fields contain Ad document IDs (not full objects).
+type AdvertHobby struct {
+	Vdo        []string `json:"vdo"`
+	Image      []string `json:"image"`
+	Javascript []string `json:"javascript"`
+}
+
+// GetAdvertHobby reads advert_hobby from setting.json
+func GetAdvertHobby() AdvertHobby {
+	settings, err := ReadSettingFile()
+	if err != nil {
+		return AdvertHobby{}
+	}
+	raw, exists := settings["advert_hobby"]
+	if !exists {
+		return AdvertHobby{}
+	}
+	var result AdvertHobby
+	if err := json.Unmarshal(raw, &result); err != nil {
+		log.Printf("⚠️ Cannot parse advert_hobby: %v", err)
+		return AdvertHobby{}
+	}
+	return result
+}
+
+// FindAdByID looks up an ad by ID from the in-memory ads cache.
+func FindAdByID(adID string) *models.Ad {
+	adCacheMu.RLock()
+	defer adCacheMu.RUnlock()
+
+	for _, ads := range adCache {
+		for i := range ads {
+			if ads[i].ID == adID {
+				return &ads[i]
+			}
+		}
+	}
+	return nil
+}
 
 // ─── Advert Video (advert_vdo) ────────────────────────────────────────
 
@@ -102,6 +148,43 @@ func GetAdvertJavascript() AdvertJavascriptSetting {
 	return AdvertJavascriptSetting{Code: code}
 }
 
+// ─── Ads Cache (new system) ───────────────────────────────────────────
+
+var (
+	adCache   map[string][]models.Ad // spaceId → active ads
+	adCacheMu sync.RWMutex
+)
+
+// LoadAds loads ads into the in-memory cache grouped by spaceId.
+func LoadAds(ads []models.Ad) {
+	cache := make(map[string][]models.Ad)
+	for i := range ads {
+		ad := ads[i]
+		if ad.Status != "active" {
+			continue
+		}
+		cache[ad.SpaceID] = append(cache[ad.SpaceID], ad)
+	}
+
+	adCacheMu.Lock()
+	adCache = cache
+	adCacheMu.Unlock()
+
+	log.Printf("📋 Loaded %d active ads → ads cache", len(ads))
+}
+
+// FindAdsBySpaceID returns active ads for a given spaceId from the cache.
+func FindAdsBySpaceID(spaceID string) []models.Ad {
+	if spaceID == "" {
+		return nil
+	}
+
+	adCacheMu.RLock()
+	defer adCacheMu.RUnlock()
+
+	return adCache[spaceID]
+}
+
 // ─── Resolved Ad Config ───────────────────────────────────────────────
 
 // ResolvedAds is the final ad configuration passed to the player/vast
@@ -110,56 +193,97 @@ type ResolvedAds struct {
 	VastEnabled bool
 	VdoItems    []AdvertVdoItem
 
-	// Image overlay ad
-	AdvertImage *AdvertImageConfig
+	// Image overlay ads (multiple supported, JS picks randomly)
+	AdvertImages []AdvertImageConfig
 
-	// Javascript ad code
-	AdJavascript string
+	// Javascript ad scripts (all injected)
+	AdJavascripts []string
 }
 
-// ResolveAds returns the appropriate ad configuration based on space plan type.
-//
-// Rules:
-//   - planType == "free" (or no plan) → use global ads from setting.json
-//   - planType == "paid" → use domain-level ads (domain may have own advert config)
-//   - domain == nil → always use global ads from setting.json
-func ResolveAds(spaceID string, domain interface{ GetAdvert() interface{} }) ResolvedAds {
-	// Intentionally simple: caller passes planType directly
-	return ResolvedAds{}
-}
+// ResolveAdsFromAds converts []models.Ad into ResolvedAds for paid plan.
+func ResolveAdsFromAds(ads []models.Ad) ResolvedAds {
+	result := ResolvedAds{}
 
-// ResolveAdsFromPlan selects ad config based on plan type and domain.
-//
-//   - planType "free" or "" → VAST always enabled; JS/image from setting.json
-//   - planType "paid"       → use domain ads only
-func ResolveAdsFromPlan(planType string, domainVast bool, domainAdvertImage *AdvertImageConfig, domainJavascript string) ResolvedAds {
-	if planType == "paid" {
-		return ResolvedAds{
-			VastEnabled:  domainVast,
-			AdvertImage:  domainAdvertImage,
-			AdJavascript: domainJavascript,
+	for _, ad := range ads {
+		if ad.Content == nil {
+			continue
+		}
+		switch ad.Type {
+		case "video":
+			if ad.Content.MP4URL != nil && *ad.Content.MP4URL != "" {
+				result.VastEnabled = true
+			}
+		case "image":
+			if ad.Content.ImageURL != nil && *ad.Content.ImageURL != "" {
+				websiteUrl := ""
+				if ad.Content.WebsiteURL != nil {
+					websiteUrl = *ad.Content.WebsiteURL
+				}
+				result.AdvertImages = append(result.AdvertImages, AdvertImageConfig{
+					ImageUrl:   *ad.Content.ImageURL,
+					WebsiteUrl: websiteUrl,
+					ShowOn:     ad.Content.ShowOn,
+				})
+			}
+		case "script":
+			if ad.Content.Script != nil && *ad.Content.Script != "" {
+				result.AdJavascripts = append(result.AdJavascripts, *ad.Content.Script)
+			}
 		}
 	}
 
-	// Free (or no plan): VAST always enabled, JS/image from setting.json
-	result := ResolvedAds{
-		VastEnabled: true, // always — /vast.xml returns empty VAST if no ads configured
+	return result
+}
+
+// ResolveAdsFromPlan selects ad config based on plan type.
+//
+//   - planType "hobby" or "" → ads from advert_hobby setting
+//   - planType "pro"/"business"/"enterprise" → use ads from ads collection (by spaceId)
+func ResolveAdsFromPlan(planType string, spaceID string) ResolvedAds {
+	if planType != "" && planType != models.PlanTypeHobby && spaceID != "" {
+		ads := FindAdsBySpaceID(spaceID)
+		if len(ads) > 0 {
+			return ResolveAdsFromAds(ads)
+		}
+		// No ads configured for this space → no ads
+		return ResolvedAds{}
 	}
 
-	// Image ad from setting.json
-	img := GetAdvertImage()
-	if img.IsActive && img.ImageUrl != "" {
-		result.AdvertImage = &AdvertImageConfig{
-			ImageUrl:   img.ImageUrl,
-			WebsiteUrl: img.WebsiteUrl,
-			ShowOn:     img.ShowOn,
+	// Hobby (or no plan): read Ad IDs from advert_hobby, lookup from ads cache
+	hobby := GetAdvertHobby()
+	result := ResolvedAds{}
+
+	// Resolve video ad IDs → enable VAST if any active
+	for _, adID := range hobby.Vdo {
+		ad := FindAdByID(adID)
+		if ad != nil && ad.Content != nil && ad.Content.MP4URL != nil && *ad.Content.MP4URL != "" {
+			result.VastEnabled = true
+			break
 		}
 	}
 
-	// Javascript ad from setting.json (plain string)
-	js := GetAdvertJavascript()
-	if js.Code != "" {
-		result.AdJavascript = js.Code
+	// Resolve image ad IDs
+	for _, adID := range hobby.Image {
+		ad := FindAdByID(adID)
+		if ad != nil && ad.Content != nil && ad.Content.ImageURL != nil && *ad.Content.ImageURL != "" {
+			websiteUrl := ""
+			if ad.Content.WebsiteURL != nil {
+				websiteUrl = *ad.Content.WebsiteURL
+			}
+			result.AdvertImages = append(result.AdvertImages, AdvertImageConfig{
+				ImageUrl:   *ad.Content.ImageURL,
+				WebsiteUrl: websiteUrl,
+				ShowOn:     ad.Content.ShowOn,
+			})
+		}
+	}
+
+	// Resolve javascript ad IDs
+	for _, adID := range hobby.Javascript {
+		ad := FindAdByID(adID)
+		if ad != nil && ad.Content != nil && ad.Content.Script != nil && *ad.Content.Script != "" {
+			result.AdJavascripts = append(result.AdJavascripts, *ad.Content.Script)
+		}
 	}
 
 	return result

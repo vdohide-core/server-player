@@ -71,6 +71,11 @@ func (h *Handler) HandlePoster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !CheckDomainSpace(r, file.SpaceID) {
+		sendNotFound(w, r, http.StatusNotFound)
+		return
+	}
+
 	// ─── Step 2: Find video media ────────────────────────────────────────
 	var media models.Media
 	err = database.Medias().FindOne(ctx, bson.M{

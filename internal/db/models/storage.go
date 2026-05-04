@@ -44,7 +44,7 @@ type StorageCapacity struct {
 // Collection: "storages" | _id: String (UUID)
 type Storage struct {
 	ID          string              `bson:"_id" json:"id" goose:"required,default:uuid"`
-	Name        string              `bson:"name" json:"name" goose:"required"`
+	Name        string              `bson:"name" json:"name" goose:"required,unique"`
 	Enable      bool                `bson:"enable" json:"enable"`
 	Type        string              `bson:"type" json:"type"`                             // local, s3
 	Status      string              `bson:"status" json:"status" goose:"default:offline"` // online, offline, error, maintenance

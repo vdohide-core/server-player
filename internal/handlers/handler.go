@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"server-player/internal/assets"
+	"server-player/internal/services"
 )
 
 //go:embed templates/*.html
@@ -46,6 +47,44 @@ func GetStaticFS() http.FileSystem {
 		panic(err)
 	}
 	return http.FS(fsys)
+}
+
+// ─── Domain/Space Validation ──────────────────────────────────────────────────
+
+// CheckDomainSpace validates if the request domain allows accessing the target space.
+func CheckDomainSpace(r *http.Request, targetSpaceID *string) bool {
+	domain, isDomainRequest := services.FindDomain(r.Host)
+	if isDomainRequest {
+		if domain == nil || domain.Status != "active" || !domain.Enable {
+			return false
+		}
+
+		hasSpace := domain.SpaceID != nil && *domain.SpaceID != ""
+		hasCreator := domain.CreatorID != nil && *domain.CreatorID != ""
+
+		// System domain (no SpaceID and no CreatorID) can fetch any file
+		if !hasSpace && !hasCreator {
+			return true
+		}
+
+		// Workspace domain (has SpaceID)
+		if hasSpace {
+			tSpace := ""
+			if targetSpaceID != nil {
+				tSpace = *targetSpaceID
+			}
+			if tSpace != *domain.SpaceID {
+				return false
+			}
+			return true
+		}
+
+		// Legacy user domain (has CreatorID but no SpaceID)
+		// We reject it because we can't verify CreatorID across all handlers (like video.go uses Media)
+		// and we are enforcing the new Workspace-based system.
+		return false
+	}
+	return true
 }
 
 // ─── Not-Found Helpers ────────────────────────────────────────────────────────

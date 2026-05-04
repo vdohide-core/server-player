@@ -64,8 +64,8 @@ type PlayerConfig struct {
 	WatermarkWebUrl   string           `json:"watermarkWebUrl"`
 	WatermarkPosition string           `json:"watermarkPosition"`
 	WatermarkOpacity  float64          `json:"watermarkOpacity"`
-	Vast            bool               `json:"vast"`
-	AdvertImage     *AdvertImageConfig `json:"advertImage,omitempty"`
+	VastURL         string             `json:"vastUrl,omitempty"`
+	AdvertImages    []AdvertImageConfig `json:"advertImages,omitempty"`
 }
 
 // GetPlayerSettings returns the hardcoded global default player settings.
@@ -121,7 +121,6 @@ func BuildPlayerConfig(
 	playlistURL string,
 	medias map[string]string,
 	settings PlayerSettings,
-	vastEnabled bool,
 ) PlayerConfig {
 	return PlayerConfig{
 		Title:               title,
@@ -145,6 +144,5 @@ func BuildPlayerConfig(
 		FastForward:         settings.FastForward,
 		Rewind:              settings.Rewind,
 		SeekStep:            settings.SeekStep,
-		Vast:                vastEnabled,
 	}
 }

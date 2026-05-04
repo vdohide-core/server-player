@@ -43,6 +43,11 @@ func (h *Handler) HandleSpriteVTT(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !CheckDomainSpace(r, file.SpaceID) {
+		HandleNotFound(w, r)
+		return
+	}
+
 	// ─── Step 2: Find thumbnail media ────────────────────────────────────
 	var media models.Media
 	err = database.Medias().FindOne(ctx, bson.M{
@@ -128,6 +133,11 @@ func (h *Handler) HandleSpriteImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if file.IsTrashed() || file.IsDeleted() {
+		HandleNotFound(w, r)
+		return
+	}
+
+	if !CheckDomainSpace(r, file.SpaceID) {
 		HandleNotFound(w, r)
 		return
 	}

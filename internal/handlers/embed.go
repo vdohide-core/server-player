@@ -89,16 +89,9 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ─── Step 4: spaceId access control ──────────────────────────────
-	// If domain is scoped to a space, only allow files belonging to that space
-	if domain != nil && domain.SpaceID != nil && *domain.SpaceID != "" {
-		fileSpaceID := ""
-		if file.SpaceID != nil {
-			fileSpaceID = *file.SpaceID
-		}
-		if fileSpaceID != *domain.SpaceID {
-			RenderError(w, "File not found", http.StatusNotFound)
-			return
-		}
+	if !CheckDomainSpace(r, file.SpaceID) {
+		RenderError(w, "File not found", http.StatusNotFound)
+		return
 	}
 
 	// ─── Step 4b: Check space status ─────────────────────────────────
@@ -255,7 +248,7 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 
 	// ── Determine space plan type ──────────────────────────────────────
 	// Lookup the space this file belongs to (from memory cache)
-	planType := "free"
+	planType := "hobby"
 	if file.SpaceID != nil && *file.SpaceID != "" {
 		if plan := services.GetSpacePlan(*file.SpaceID); plan != nil {
 			planType = plan.PlanType
@@ -275,45 +268,33 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 		baseColor = globalSettings.BaseColor
 		playerConfig = services.BuildPlayerConfig(
 			file.Name, posterURL, playlistURL, medias, globalSettings,
-			false, // vast will be set below via ResolveAdsFromPlan
 		)
 	}
 
 	// ── Resolve ads based on plan type ─────────────────────────────────
-	// free  → global ads from setting.json (advert_vdo / advert_image / advert_javascript)
-	// paid  → domain-level ads (domain.Advert / domain.AdvertImage / domain.AdvertJavascript)
-	var domainAdvertImage *services.AdvertImageConfig
-	domainJavascript := ""
-	domainVast := false
-
-	if domain != nil {
-		// Extract domain-level ad data for paid plan fallback
-		for _, ad := range domain.Advert {
-			if ad.IsActive != nil && *ad.IsActive {
-				domainVast = true
-				break
-			}
-		}
-		if domain.AdvertImage != nil &&
-			domain.AdvertImage.IsActive != nil && *domain.AdvertImage.IsActive &&
-			domain.AdvertImage.ImageURL != nil && *domain.AdvertImage.ImageURL != "" {
-			domainAdvertImage = &services.AdvertImageConfig{
-				ImageUrl:   *domain.AdvertImage.ImageURL,
-				WebsiteUrl: services.DerefStr(domain.AdvertImage.WebsiteURL),
-				ShowOn:     domain.AdvertImage.ShowOn,
-			}
-		}
-		if domain.AdvertJavascript != nil {
-			domainJavascript = *domain.AdvertJavascript
-		}
+	// hobby → global ads from setting.json (advert_vdo / advert_image / advert_javascript)
+	// pro/business/enterprise → ads from ads collection (by spaceId)
+	spaceID := ""
+	if file.SpaceID != nil {
+		spaceID = *file.SpaceID
 	}
 
-	ads := services.ResolveAdsFromPlan(planType, domainVast, domainAdvertImage, domainJavascript)
+	ads := services.ResolveAdsFromPlan(planType, spaceID)
 
 	// Apply resolved ads to player config
-	playerConfig.Vast = ads.VastEnabled
-	playerConfig.AdvertImage = ads.AdvertImage
-	adJavascript := ads.AdJavascript
+	// Hobby plan → /vast/hobby.xml
+	// Paid plan with domain → /vast/{domainSlug}.xml (if domain has video ads)
+	if ads.VastEnabled {
+		if planType == "" || planType == models.PlanTypeHobby {
+			playerConfig.VastURL = "/vast/hobby.xml"
+		} else if domain != nil && domain.Slug != "" {
+			if domain.Ads == nil || len(domain.Ads.Video) > 0 {
+				playerConfig.VastURL = fmt.Sprintf("/vast/%s.xml", domain.Slug)
+			}
+		}
+	}
+	playerConfig.AdvertImages = ads.AdvertImages
+	adJavascript := strings.Join(ads.AdJavascripts, "\n")
 
 	// Set sprite VTT URL if thumbnails exist
 	playerConfig.SpriteVttUrl = spriteVttURL
