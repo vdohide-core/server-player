@@ -198,7 +198,7 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 	if r.TLS != nil {
 		reqProto = "https"
 	}
-	
+
 	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
 		if strings.Contains(strings.ToLower(proto), "https") {
 			reqProto = "https"
@@ -327,49 +327,57 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 	//   - domain.Ads.Image  → only show image ads with these IDs (empty/nil = no image ads)
 	//   - domain.Ads.Script → only show script ads with these IDs (empty/nil = no script ads)
 	// If domain.Ads is nil, all resolved ads pass through (no filtering).
-	if domain != nil && domain.Ads != nil {
-		// Filter image ads: only keep ads whose ID is in domain.Ads.Image
-		if len(domain.Ads.Image) > 0 {
-			var filteredImages []services.AdvertImageConfig
-			for _, id := range domain.Ads.Image {
-				ad := services.FindAdByID(id)
-				if ad != nil && ad.Type == "image" && ad.Content != nil &&
-					ad.Content.ImageURL != nil && *ad.Content.ImageURL != "" {
-					websiteUrl := ""
-					if ad.Content.WebsiteURL != nil {
-						websiteUrl = *ad.Content.WebsiteURL
+	// Hobby plan ALWAYS shows hobby ads, ignoring domain configurations.
+	if planType != "hobby" {
+		if domain != nil && domain.Ads != nil {
+			// Filter image ads: only keep ads whose ID is in domain.Ads.Image
+			if len(domain.Ads.Image) > 0 {
+				var filteredImages []services.AdvertImageConfig
+				for _, id := range domain.Ads.Image {
+					ad := services.FindAdByID(id)
+					if ad != nil && ad.Type == "image" && ad.Content != nil &&
+						ad.Content.ImageURL != nil && *ad.Content.ImageURL != "" {
+						websiteUrl := ""
+						if ad.Content.WebsiteURL != nil {
+							websiteUrl = *ad.Content.WebsiteURL
+						}
+						filteredImages = append(filteredImages, services.AdvertImageConfig{
+							ImageUrl:   *ad.Content.ImageURL,
+							WebsiteUrl: websiteUrl,
+							ShowOn:     ad.Content.ShowOn,
+						})
 					}
-					filteredImages = append(filteredImages, services.AdvertImageConfig{
-						ImageUrl:   *ad.Content.ImageURL,
-						WebsiteUrl: websiteUrl,
-						ShowOn:     ad.Content.ShowOn,
-					})
 				}
+				ads.AdvertImages = filteredImages
+			} else {
+				// domain.Ads exists but Image is empty/nil → no image ads
+				ads.AdvertImages = nil
 			}
-			ads.AdvertImages = filteredImages
+
+			// Filter script ads: only keep ads whose ID is in domain.Ads.Script
+			if len(domain.Ads.Script) > 0 {
+				var filteredScripts []string
+				for _, id := range domain.Ads.Script {
+					ad := services.FindAdByID(id)
+					if ad != nil && (ad.Type == "script" || ad.Type == "javascript") && ad.Content != nil &&
+						ad.Content.Script != nil && *ad.Content.Script != "" {
+						filteredScripts = append(filteredScripts, *ad.Content.Script)
+					}
+				}
+				ads.AdJavascripts = filteredScripts
+			} else {
+				// domain.Ads exists but Script is empty/nil → no script ads
+				ads.AdJavascripts = nil
+			}
+
+			// Filter video ads: if domain.Ads.Video is empty → disable VAST
+			if len(domain.Ads.Video) == 0 {
+				ads.VastEnabled = false
+			}
 		} else {
-			// domain.Ads exists but Image is empty/nil → no image ads
+			// For non-hobby plans, if the domain does not specify an Ads config (e.g., system domains), show NO ads.
 			ads.AdvertImages = nil
-		}
-
-		// Filter script ads: only keep ads whose ID is in domain.Ads.Script
-		if len(domain.Ads.Script) > 0 {
-			var filteredScripts []string
-			for _, id := range domain.Ads.Script {
-				ad := services.FindAdByID(id)
-				if ad != nil && (ad.Type == "script" || ad.Type == "javascript") && ad.Content != nil &&
-					ad.Content.Script != nil && *ad.Content.Script != "" {
-					filteredScripts = append(filteredScripts, *ad.Content.Script)
-				}
-			}
-			ads.AdJavascripts = filteredScripts
-		} else {
-			// domain.Ads exists but Script is empty/nil → no script ads
 			ads.AdJavascripts = nil
-		}
-
-		// Filter video ads: if domain.Ads.Video is empty → disable VAST
-		if len(domain.Ads.Video) == 0 {
 			ads.VastEnabled = false
 		}
 	}
