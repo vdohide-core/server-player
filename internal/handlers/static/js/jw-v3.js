@@ -1585,15 +1585,6 @@ function initCustomUI(playerId, playerInstance) {
 
         let ignoreOutsideClick = false;
 
-        // บังคับให้ JW สร้าง DOM ของ native settings menu เพื่อให้เรากดปุ่ม native ได้
-        const nativeSettingsBtn = playerEl.querySelector(".jw-icon-settings");
-        if (nativeSettingsBtn) {
-            const menu = playerEl.querySelector(".jw-settings-menu");
-            if (menu) menu.style.display = "none";
-            nativeSettingsBtn.click(); // เปิด (สร้าง DOM)
-            nativeSettingsBtn.click(); // ปิด
-        }
-
         // ---- ดึงข้อมูลจาก JW Player ----
         const levels = playerInstance.getQualityLevels ? playerInstance.getQualityLevels() : [];
         const currentQuality = playerInstance.getCurrentQuality ? playerInstance.getCurrentQuality() : 0;

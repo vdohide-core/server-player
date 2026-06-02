@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"server-player/internal/db/database"
 	"server-player/internal/db/models"
 	"server-player/internal/utils"
 
@@ -31,7 +30,7 @@ func (h *Handler) HandleSpriteVTT(w http.ResponseWriter, r *http.Request) {
 
 	// ─── Step 1: Find file by slug ───────────────────────────────────────
 	var file models.File
-	err := database.Files().FindOne(ctx, bson.M{"slug": slug}).Decode(&file)
+	err := models.FileModel.Col().FindOne(ctx, bson.M{"slug": slug}).Decode(&file)
 	if err != nil {
 		log.Printf("[Sprite] File not found: %s", slug)
 		HandleNotFound(w, r)
@@ -50,7 +49,7 @@ func (h *Handler) HandleSpriteVTT(w http.ResponseWriter, r *http.Request) {
 
 	// ─── Step 2: Find thumbnail media ────────────────────────────────────
 	var media models.Media
-	err = database.Medias().FindOne(ctx, bson.M{
+	err = models.MediaModel.Col().FindOne(ctx, bson.M{
 		"fileId":    file.ID,
 		"type":      models.MediaTypeThumbnail,
 		"deletedAt": nil,
@@ -68,7 +67,7 @@ func (h *Handler) HandleSpriteVTT(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var storage models.Storage
-	err = database.Storages().FindOne(ctx, bson.M{"_id": storageID}).Decode(&storage)
+	err = models.StorageModel.Col().FindOne(ctx, bson.M{"_id": storageID}).Decode(&storage)
 	if err != nil {
 		log.Printf("[Sprite] Storage not found: %s", storageID)
 		HandleNotFound(w, r)
@@ -126,7 +125,7 @@ func (h *Handler) HandleSpriteImage(w http.ResponseWriter, r *http.Request) {
 
 	// ─── Step 1: Find file by slug ───────────────────────────────────────
 	var file models.File
-	err := database.Files().FindOne(ctx, bson.M{"slug": slug}).Decode(&file)
+	err := models.FileModel.Col().FindOne(ctx, bson.M{"slug": slug}).Decode(&file)
 	if err != nil {
 		HandleNotFound(w, r)
 		return
@@ -144,7 +143,7 @@ func (h *Handler) HandleSpriteImage(w http.ResponseWriter, r *http.Request) {
 
 	// ─── Step 2: Find thumbnail media ────────────────────────────────────
 	var media models.Media
-	err = database.Medias().FindOne(ctx, bson.M{
+	err = models.MediaModel.Col().FindOne(ctx, bson.M{
 		"fileId":    file.ID,
 		"type":      models.MediaTypeThumbnail,
 		"deletedAt": nil,
@@ -161,7 +160,7 @@ func (h *Handler) HandleSpriteImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var storage models.Storage
-	err = database.Storages().FindOne(ctx, bson.M{"_id": storageID}).Decode(&storage)
+	err = models.StorageModel.Col().FindOne(ctx, bson.M{"_id": storageID}).Decode(&storage)
 	if err != nil {
 		HandleNotFound(w, r)
 		return

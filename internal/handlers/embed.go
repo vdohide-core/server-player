@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"server-player/internal/db/database"
 	"server-player/internal/db/models"
 	"server-player/internal/services"
 
@@ -53,7 +52,7 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 
 	// ─── Step 2: Find file by slug ───────────────────────────────────
 	var file models.File
-	err := database.Files().FindOne(ctx, bson.M{"slug": slug}).Decode(&file)
+	err := models.FileModel.Col().FindOne(ctx, bson.M{"slug": slug}).Decode(&file)
 	if err != nil {
 		log.Printf("⚠️ File not found: %s (error: %v)", slug, err)
 		RenderError(w, "File not found", http.StatusNotFound)
@@ -105,7 +104,7 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ─── Step 5: Find video media for this file ──────────────────────
-	cursor, err := database.Medias().Find(ctx, bson.M{
+	cursor, err := models.MediaModel.Col().Find(ctx, bson.M{
 		"fileId":     file.ID,
 		"type":       models.MediaTypeVideo,
 		"resolution": bson.M{"$in": []string{"original", "1080", "720", "480", "360"}},
@@ -147,7 +146,7 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 	if len(medias) == 0 {
 		// Query video_process for this file
 		var vp models.VideoProcess
-		vpErr := database.VideoProcess().FindOne(ctx, bson.M{"fileId": file.ID}).Decode(&vp)
+		vpErr := models.VideoProcessModel.Col().FindOne(ctx, bson.M{"fileId": file.ID}).Decode(&vp)
 
 		type ProcessingData struct {
 			State   string // "processing" | "queue" | "error"
@@ -191,8 +190,8 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 
 	// ─── Step 7: Build content URLs ─────────────────────────
 	playlistHost := services.GetDomainPlaylist(r.Host)
-	adsHost := services.GetDomainAds(r.Host)
 	previewHost := services.GetDomainPreview()
+	staticHost := services.GetDomainStatic()
 
 	reqProto := "http"
 	if r.TLS != nil {
@@ -227,12 +226,12 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	playlistProtocol := getProtocol(playlistHost)
-	adsProtocol := getProtocol(adsHost)
+	staticProtocol := getProtocol(staticHost)
 
 	// ─── Step 8: Find poster image ─────────────────────────────────────
 	posterURL := ""
 	var posterMedia models.Media
-	err = database.Medias().FindOne(ctx, bson.M{
+	err = models.MediaModel.Col().FindOne(ctx, bson.M{
 		"fileId":     file.ID,
 		"type":       models.MediaTypeImage,
 		"resolution": models.ResolutionPoster,
@@ -240,7 +239,7 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 	}).Decode(&posterMedia)
 	if err == nil && posterMedia.StorageID != nil && *posterMedia.StorageID != "" {
 		var storage models.Storage
-		if sErr := database.Storages().FindOne(ctx, bson.M{"_id": *posterMedia.StorageID}).Decode(&storage); sErr == nil {
+		if sErr := models.StorageModel.Col().FindOne(ctx, bson.M{"_id": *posterMedia.StorageID}).Decode(&storage); sErr == nil {
 			if storage.PublicURL != nil && *storage.PublicURL != "" {
 				posterURL = strings.TrimRight(*storage.PublicURL, "/") + "/" + posterMedia.Slug + "/poster.jpg"
 			}
@@ -255,7 +254,10 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 		if file.Metadata != nil && file.Metadata.Duration != nil {
 			thumbTime = int(*file.Metadata.Duration / 2)
 		}
-		if previewHost != "" {
+		if staticHost != "" {
+			staticProtocol := getProtocol(staticHost)
+			posterURL = staticProtocol + "://" + staticHost + "/thumb/" + slug + "/" + fmt.Sprintf("%d", thumbTime) + ".jpg"
+		} else if previewHost != "" {
 			previewProtocol := getProtocol(previewHost)
 			posterURL = previewProtocol + "://" + previewHost + "/thumb/" + slug + "/" + fmt.Sprintf("%d", thumbTime) + ".jpg"
 		} else {
@@ -266,13 +268,16 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 	// ─── Step 8.5: Find thumbnail sprite VTT ──────────────────────────
 	spriteVttURL := ""
 	var thumbMedia models.Media
-	tErr := database.Medias().FindOne(ctx, bson.M{
+	tErr := models.MediaModel.Col().FindOne(ctx, bson.M{
 		"fileId":    file.ID,
 		"type":      models.MediaTypeThumbnail,
 		"deletedAt": nil,
 	}).Decode(&thumbMedia)
 	if tErr == nil {
-		if previewHost != "" {
+		if staticHost != "" {
+			staticProtocol := getProtocol(staticHost)
+			spriteVttURL = staticProtocol + "://" + staticHost + "/" + slug + "/sprite/sprite.vtt"
+		} else if previewHost != "" {
 			previewProtocol := getProtocol(previewHost)
 			spriteVttURL = previewProtocol + "://" + previewHost + "/" + slug + "/sprite/sprite.vtt"
 		} else {
@@ -386,7 +391,7 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 	// Hobby plan → /vast/hobby.xml
 	// Paid plan with domain → /vast/{domainSlug}.xml (if domain has video ads)
 	if ads.VastEnabled {
-		adsBaseUrl := adsProtocol + "://" + adsHost
+		adsBaseUrl := staticProtocol + "://" + staticHost
 		if planType == "" || planType == models.PlanTypeHobby {
 			playerConfig.VastURL = adsBaseUrl + "/vast/hobby.xml"
 		} else if domain != nil && domain.Slug != "" {

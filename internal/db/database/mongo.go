@@ -6,7 +6,8 @@ import (
 	"time"
 
 	"server-player/internal/config"
-	"server-player/internal/lib/goose"
+	"server-player/internal/db/models"
+	"github.com/zergolf1994/goose"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -39,24 +40,6 @@ func DB() *mongo.Database {
 	return goose.DB()
 }
 
-// Collection returns a collection by name (delegates to goose).
-func Collection(name string) *mongo.Collection {
-	return goose.Collection(name)
-}
-
-// ─── Collection Accessors ─────────────────────────────────────
-
-func Files() *mongo.Collection         { return goose.Collection("files") }
-func Medias() *mongo.Collection        { return goose.Collection("medias") }
-func Storages() *mongo.Collection      { return goose.Collection("storages") }
-func Ingests() *mongo.Collection       { return goose.Collection("ingests") }
-func Settings() *mongo.Collection      { return goose.Collection("settings") }
-func VideoProcess() *mongo.Collection  { return goose.Collection("video_process") }
-func Oauths() *mongo.Collection        { return goose.Collection("oauths") }
-func CustomDomains() *mongo.Collection { return goose.Collection("custom_domains") }
-func Workspaces() *mongo.Collection    { return goose.Collection("workspaces") }
-func Ads() *mongo.Collection           { return goose.Collection("ads") }
-
 // ─── Indexes ──────────────────────────────────────────────────
 
 // EnsureIndexes creates required indexes for concurrency safety.
@@ -64,45 +47,21 @@ func EnsureIndexes() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Drop stale indexes
-	VideoProcess().Indexes().DropOne(ctx, "postId_1")
-	VideoProcess().Indexes().DropOne(ctx, "fileId_1")
+	vpCol := models.VideoProcessModel.Col()
 
-	// Clean up duplicate fileId records before creating unique index
-	pipeline := mongo.Pipeline{
-		{{Key: "$group", Value: bson.D{
-			{Key: "_id", Value: "$fileId"},
-			{Key: "count", Value: bson.D{{Key: "$sum", Value: 1}}},
-			{Key: "ids", Value: bson.D{{Key: "$push", Value: "$_id"}}},
-		}}},
-		{{Key: "$match", Value: bson.D{{Key: "count", Value: bson.D{{Key: "$gt", Value: 1}}}}}},
-	}
-	cursor, err := VideoProcess().Aggregate(ctx, pipeline)
-	if err == nil {
-		type DupResult struct {
-			FileID string   `bson:"_id"`
-			Count  int      `bson:"count"`
-			IDs    []string `bson:"ids"`
-		}
-		for cursor.Next(ctx) {
-			var dup DupResult
-			if cursor.Decode(&dup) == nil && len(dup.IDs) > 1 {
-				deleteIDs := dup.IDs[1:]
-				VideoProcess().DeleteMany(ctx, bson.M{"_id": bson.M{"$in": deleteIDs}})
-				log.Printf("🧹 Removed %d duplicate video_process for fileId %s", len(deleteIDs), dup.FileID)
-			}
-		}
-		cursor.Close(ctx)
-	}
+	// Drop old single-field indexes (one-time migration)
+	vpCol.Indexes().DropOne(ctx, "postId_1")
+	vpCol.Indexes().DropOne(ctx, "fileId_1")
 
-	// Unique index on video_process.fileId
-	_, err = VideoProcess().Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys:    bson.D{{Key: "fileId", Value: 1}},
+	// Compound unique index: one process per file per processType
+	// This allows both download + transcode processes for the same file
+	_, err := vpCol.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "fileId", Value: 1}, {Key: "processType", Value: 1}},
 		Options: options.Index().SetUnique(true).SetSparse(true),
 	})
 	if err != nil {
 		log.Printf("⚠️  Index creation warning: %v", err)
 	} else {
-		log.Printf("✅ Unique index on video_process.fileId ensured")
+		log.Printf("✅ Unique index on video_process.{fileId,processType} ensured")
 	}
 }

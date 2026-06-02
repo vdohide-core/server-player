@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"server-player/internal/config"
 )
 
 // ReadSettingFile reads and parses conf/setting.json.
@@ -69,6 +70,15 @@ func GetDomainAds(fallbackHost string) string {
 // GetDomainPreview fetches the domain_preview setting. Returns empty if not set.
 func GetDomainPreview() string {
 	return getStringSetting("domain_preview")
+}
+
+// GetDomainStatic fetches the domain_static setting. Returns empty if not set.
+func GetDomainStatic() string {
+	val := config.AppConfig.DomainStatic
+	if val != "" {
+		return val
+	}
+	return getStringSetting("domain_static")
 }
 
 // unused log helper

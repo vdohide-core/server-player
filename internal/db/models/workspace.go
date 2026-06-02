@@ -3,7 +3,7 @@ package models
 import (
 	"time"
 
-	"server-player/internal/lib/goose"
+	"github.com/zergolf1994/goose"
 )
 
 // WorkspaceMetadata holds metadata embedded in a Workspace.
@@ -15,15 +15,16 @@ type WorkspaceMetadata struct {
 
 // WorkspaceCapacity holds storage capacity stats embedded in a Workspace.
 type WorkspaceCapacity struct {
-	Total      interface{} `bson:"total" json:"total"`
-	Used       interface{} `bson:"used" json:"used"`
-	Free       interface{} `bson:"free" json:"free"`
-	Percentage float64     `bson:"percentage" json:"percentage"`
+	Total       interface{} `bson:"total" json:"total"`
+	Used        interface{} `bson:"used" json:"used"`
+	Free        interface{} `bson:"free" json:"free"`
+	Percentage  float64     `bson:"percentage" json:"percentage"`
+	LastUpdated *time.Time  `bson:"lastUpdated,omitempty" json:"lastUpdated,omitempty"`
 }
 
 // WorkspacePlan holds the subscription plan for a workspace.
 type WorkspacePlan struct {
-	PlanType     string      `bson:"planType" json:"planType"`                                     // hobby, pro, business, enterprise
+	PlanType     string      `bson:"planType" json:"planType" goose:"default:hobby"`
 	StorageLimit interface{} `bson:"storageLimit,omitempty" json:"storageLimit,omitempty"`
 	PriceTotal   *float64    `bson:"priceTotal,omitempty" json:"priceTotal,omitempty"`
 	AdsEnabled   bool        `bson:"adsEnabled" json:"adsEnabled"`

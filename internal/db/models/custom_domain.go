@@ -3,12 +3,11 @@ package models
 import (
 	"time"
 
-	"server-player/internal/lib/goose"
+	"github.com/zergolf1994/goose"
 )
 
 // PlayerConfig holds video player configuration for a custom domain.
 type PlayerConfig struct {
-	Skin            *string `bson:"skin,omitempty" json:"skin,omitempty"` // netflix, youtube, other
 	LogoImageURL    *string `bson:"logoImageUrl,omitempty" json:"logoImageUrl,omitempty"`
 	LogoWebsiteURL  *string `bson:"logoWebsiteUrl,omitempty" json:"logoWebsiteUrl,omitempty"`
 	LogoPosition    *string `bson:"logoPosition,omitempty" json:"logoPosition,omitempty"`
@@ -32,16 +31,39 @@ type PlayerConfig struct {
 	SeekStep        int     `bson:"seekStep" json:"seekStep"`
 }
 
+// Advert holds a video advertisement config.
+type Advert struct {
+	ID          *string `bson:"id,omitempty" json:"id,omitempty"`
+	Name        *string `bson:"name,omitempty" json:"name,omitempty"`
+	MP4URL      *string `bson:"mp4Url,omitempty" json:"mp4Url,omitempty"`
+	WebsiteURL  *string `bson:"websiteUrl,omitempty" json:"websiteUrl,omitempty"`
+	SkipSeconds int     `bson:"skipSeconds" json:"skipSeconds"`
+	IsActive    *bool   `bson:"isActive,omitempty" json:"isActive,omitempty"`
+}
+
+// AdvertImage holds an image advertisement config.
+type AdvertImage struct {
+	ID         *string  `bson:"id,omitempty" json:"id,omitempty"`
+	Name       *string  `bson:"name,omitempty" json:"name,omitempty"`
+	ImageURL   *string  `bson:"imageUrl,omitempty" json:"imageUrl,omitempty"`
+	WebsiteURL *string  `bson:"websiteUrl,omitempty" json:"websiteUrl,omitempty"`
+	IsActive   *bool    `bson:"isActive,omitempty" json:"isActive,omitempty"`
+	ShowOn     []string `bson:"showOn,omitempty" json:"showOn,omitempty"` // ready, end, pause
+}
+
 // DomainDNS holds DNS configuration for domain verification.
 type DomainDNS struct {
 	RecordType        string     `bson:"recordType" json:"recordType"`
 	Value             string     `bson:"value" json:"value"`
 	TTL               int        `bson:"ttl" json:"ttl"`
 	VerificationToken string     `bson:"verificationToken" json:"verificationToken"`
+	RetryCount        int        `bson:"retryCount" json:"retryCount"`
 	LastVerified      *time.Time `bson:"lastVerified,omitempty" json:"lastVerified,omitempty"`
+	Reason            *string    `bson:"reason,omitempty" json:"reason,omitempty"`
 }
 
 // DomainAds holds references to Ad documents by type.
+// Deprecated: Use Advert/AdvertImage/AdvertJavascript fields on CustomDomain directly.
 type DomainAds struct {
 	Video  []string `bson:"video,omitempty" json:"video,omitempty"`   // Ad IDs for video ads
 	Image  []string `bson:"image,omitempty" json:"image,omitempty"`   // Ad IDs for image ads
@@ -51,18 +73,21 @@ type DomainAds struct {
 // CustomDomain represents a custom domain with player/ad config.
 // Collection: "custom_domains" | _id: String (UUID)
 type CustomDomain struct {
-	ID        string        `bson:"_id" json:"id" goose:"required,default:uuid"`
-	Enable    bool          `bson:"enable" json:"enable"`
-	Name      string        `bson:"name" json:"name" goose:"required,unique"`
-	Status    string        `bson:"status" json:"status" goose:"default:pending"` // pending, active, failed, expired
-	CreatorID *string       `bson:"creatorId,omitempty" json:"creatorId,omitempty" goose:"ref:user,index"`
-	SpaceID   *string       `bson:"spaceId,omitempty" json:"spaceId,omitempty" goose:"ref:workspaces,index"`
-	Slug      string        `bson:"slug" json:"slug" goose:"unique,default:random(11),index"`
-	DNS       *DomainDNS    `bson:"dns,omitempty" json:"dns,omitempty"`
-	Player    *PlayerConfig `bson:"player,omitempty" json:"player,omitempty"`
-	Ads       *DomainAds    `bson:"ads,omitempty" json:"ads,omitempty"`
-	CreatedAt time.Time     `bson:"createdAt" json:"createdAt" goose:"default:now"`
-	UpdatedAt time.Time     `bson:"updatedAt" json:"updatedAt" goose:"default:now"`
+	ID               string        `bson:"_id" json:"id" goose:"required,default:uuid"`
+	Enable           bool          `bson:"enable" json:"enable"`
+	Name             string        `bson:"name" json:"name" goose:"required,unique"`
+	Status           string        `bson:"status" json:"status" goose:"default:pending"` // pending, active, failed, expired
+	CreatorID        *string       `bson:"creatorId,omitempty" json:"creatorId,omitempty" goose:"ref:user,index"`
+	SpaceID          *string       `bson:"spaceId,omitempty" json:"spaceId,omitempty" goose:"ref:workspaces,index"`
+	Slug             string        `bson:"slug" json:"slug" goose:"unique,default:random(11),index"`
+	DNS              *DomainDNS    `bson:"dns,omitempty" json:"dns,omitempty"`
+	Player           *PlayerConfig `bson:"player,omitempty" json:"player,omitempty"`
+	Ads              *DomainAds    `bson:"ads,omitempty" json:"ads,omitempty"`
+	Advert           []Advert      `bson:"advert,omitempty" json:"advert,omitempty"`
+	AdvertImage      *AdvertImage  `bson:"advertImage,omitempty" json:"advertImage,omitempty"`
+	AdvertJavascript *string       `bson:"advertJavascript,omitempty" json:"advertJavascript,omitempty"`
+	CreatedAt        time.Time     `bson:"createdAt" json:"createdAt" goose:"default:now"`
+	UpdatedAt        time.Time     `bson:"updatedAt" json:"updatedAt" goose:"default:now"`
 }
 
 // CustomDomainModel is the goose model for the "custom_domains" collection.

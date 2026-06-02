@@ -1,59 +1,75 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
+
 <head>
     <meta charset="utf-8" />
+    <script type="text/javascript">
+        // ตรวจสอบภาษาของเบราว์เซอร์ผู้ใช้
+        const userLang = (navigator.language || navigator.userLanguage).toLowerCase();
+        if (userLang.startsWith('th')) {
+            document.documentElement.lang = 'th';
+        } else {
+            document.documentElement.lang = 'en';
+        }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/favicon.ico" />
-    
+
     <!-- Preconnect to external domains -->
     <link rel="preconnect" href="https://ssl.p.jwpcdn.com" crossorigin />
     <link rel="dns-prefetch" href="https://ssl.p.jwpcdn.com" />
 
     <!-- JWPlayer -->
     <script async src="https://ssl.p.jwpcdn.com/player/v/8.46.1/jwplayer.js"></script>
-    
-    <link
-      rel="stylesheet"
-      type="text/css"
-      href="/css/jw-player.css"
-    />
-    <link
-      rel="stylesheet"
-      type="text/css"
-      href="/css/continue.min.css"
-    />
+
+    <link rel="stylesheet" type="text/css" href="/css/jw-player.css" />
+    <link rel="stylesheet" type="text/css" href="/css/continue.min.css" />
     <!-- Player Configuration -->
     <script type="text/javascript">
-      const base_color = {{.BaseColor}};
-        window.playerConfig = {{.PlayerConfig}};
+        const base_color = {{.BaseColor }};
+        window.playerConfig = {{.PlayerConfig }};
     </script>
 
     <style>
         :root {
-            --base-color: {{.BaseColor}};
+            --base-color: {
+                    {
+                    .BaseColor
+                }
+            }
+
+            ;
         }
-        {{.CustomCss}}
+
+            {
+                {
+                .CustomCss
+            }
+        }
     </style>
     <title>{{.Title}}</title>
 </head>
+
 <body>
     <div id="player">
         <div class="load_player">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
-                <path d="M120 186.667a66.667 66.667 0 010-133.333V40a80 80 0 1080 80h-13.333A66.846 66.846 0 01120 186.667z"/>
+                <path
+                    d="M120 186.667a66.667 66.667 0 010-133.333V40a80 80 0 1080 80h-13.333A66.846 66.846 0 01120 186.667z" />
             </svg>
         </div>
     </div>
     <!-- Core Player -->
-    <script defer src="/js/jw-v3.js"></script>
+    <script defer src="/js/jw-v2.js"></script>
 
     <!-- Optional Modules (ลบ/comment ออกเพื่อปิดฟีเจอร์) -->
-    <script src="/js/prewarm.js"></script>      <!-- HLS CDN prewarm lookahead -->
-    <script src="/js/bandwidth.js"></script>     <!-- Network speed & bandwidth UI -->
-    <script src="/js/analytics.js"></script>     <!-- Watch time & bandwidth reporting -->
-    <script src="/js/advert-image.js"></script>  <!-- Image ad overlay -->
+    <script src="/js/prewarm.js"></script> <!-- HLS CDN prewarm lookahead -->
+    <script src="/js/bandwidth.js"></script> <!-- Network speed & bandwidth UI -->
+    <script src="/js/analytics.js"></script> <!-- Watch time & bandwidth reporting -->
+    <script src="/js/advert-image.js"></script> <!-- Image ad overlay -->
 
     {{.CustomJs}}
     {{.AdJavascript}}
 </body>
+
 </html>

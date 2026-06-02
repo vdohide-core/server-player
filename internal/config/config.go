@@ -16,11 +16,11 @@ type Config struct {
 	HTTPTimeout int
 	MongoURI    string
 
-	StorageId   string
-	StoragePath string
-	ScraperURL  string
-
-	LogPath string
+	StorageId    string
+	StoragePath  string
+	ScraperURL   string
+	DomainStatic string
+	LogPath      string
 }
 
 // Load reads configuration from environment variables (and .env file).
@@ -38,13 +38,14 @@ func Load() {
 	}
 
 	AppConfig = Config{
-		Port:        getEnv("PORT", "8081"),
-		HTTPTimeout: getEnvInt("HTTP_TIMEOUT", 30),
-		MongoURI:    mongoURI,
-		StorageId:   getEnv("STORAGE_ID", ""),
-		StoragePath: getEnv("STORAGE_PATH", "./files"),
-		ScraperURL:  getEnv("SCRAPER_URL", ""),
-		LogPath:     getEnv("LOG_PATH", "logs/server-player.log"),
+		Port:         getEnv("PORT", "8081"),
+		HTTPTimeout:  getEnvInt("HTTP_TIMEOUT", 30),
+		MongoURI:     mongoURI,
+		StorageId:    getEnv("STORAGE_ID", ""),
+		StoragePath:  getEnv("STORAGE_PATH", "./files"),
+		ScraperURL:   getEnv("SCRAPER_URL", ""),
+		LogPath:      getEnv("LOG_PATH", "logs/server-player.log"),
+		DomainStatic: getEnv("DOMAIN_STATIC", ""),
 	}
 }
 

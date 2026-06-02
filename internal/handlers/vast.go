@@ -151,7 +151,7 @@ func randomID(n int) string {
 }
 
 // buildAdsVast builds VAST XML from new Ad model entries.
-func buildAdsVast(w http.ResponseWriter, adList []models.Ad) {
+func buildAdsVast(w http.ResponseWriter, adList []models.Ads) {
 	var ads strings.Builder
 	hasActive := false
 
