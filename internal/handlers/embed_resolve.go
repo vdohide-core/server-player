@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -52,28 +53,79 @@ type EmbedResolveError struct {
 	Processing *ProcessingData
 }
 
-func requestProtocol(r *http.Request) string {
-	proto := "http"
-	if r.TLS != nil {
-		proto = "https"
+func requestHost(r *http.Request) string {
+	if h := r.Header.Get("X-Forwarded-Host"); h != "" {
+		return strings.TrimSpace(strings.Split(h, ",")[0])
 	}
+	return r.Host
+}
 
-	if p := r.Header.Get("X-Forwarded-Proto"); p != "" {
-		if strings.Contains(strings.ToLower(p), "https") {
+func isLocalRequest(r *http.Request) bool {
+	host := strings.ToLower(requestHost(r))
+	if i := strings.Index(host, ":"); i >= 0 {
+		host = host[:i]
+	}
+	return host == "localhost" || host == "127.0.0.1" || host == "0.0.0.0"
+}
+
+func cfVisitorScheme(r *http.Request) string {
+	raw := r.Header.Get("CF-Visitor")
+	if raw == "" {
+		return ""
+	}
+	var v struct {
+		Scheme string `json:"scheme"`
+	}
+	if err := json.Unmarshal([]byte(raw), &v); err != nil {
+		raw = strings.ToLower(raw)
+		if strings.Contains(raw, `"scheme":"https"`) || strings.Contains(raw, `"scheme": "https"`) {
 			return "https"
 		}
+		if strings.Contains(raw, `"scheme":"http"`) || strings.Contains(raw, `"scheme": "http"`) {
+			return "http"
+		}
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(v.Scheme))
+}
+
+func forwardedProto(r *http.Request) string {
+	p := r.Header.Get("X-Forwarded-Proto")
+	if p == "" {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(strings.Split(p, ",")[0]))
+}
+
+func requestProtocol(r *http.Request) string {
+	if isLocalRequest(r) {
 		return "http"
 	}
-	if cfVisitor := r.Header.Get("CF-Visitor"); strings.Contains(cfVisitor, `"scheme":"https"`) {
+
+	if scheme := cfVisitorScheme(r); scheme == "https" || scheme == "http" {
+		return scheme
+	}
+
+	if p := forwardedProto(r); p == "https" || p == "http" {
+		return p
+	}
+
+	// Cloudflare edge — visitor HTTPS even when origin connection is plain HTTP
+	if r.Header.Get("CF-Ray") != "" {
 		return "https"
 	}
+
 	if r.Header.Get("X-Forwarded-Ssl") == "on" ||
 		r.Header.Get("X-Forwarded-Scheme") == "https" ||
 		r.Header.Get("X-Url-Scheme") == "https" {
 		return "https"
 	}
 
-	return proto
+	if r.TLS != nil {
+		return "https"
+	}
+
+	return "http"
 }
 
 func (h *Handler) resolveEmbed(r *http.Request, slug string) (*EmbedResolveResult, *EmbedResolveError) {
