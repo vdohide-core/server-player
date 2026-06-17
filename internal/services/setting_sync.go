@@ -51,7 +51,7 @@ func SyncSettings() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	settingNames := []string{"player_maintenance", "advert_hobby", "domain_content", "domain_preview", "domain_static"}
+	settingNames := []string{"player_maintenance", "advert_hobby", "domain_content", "domain_playlist", "domain_preview", "domain_static"}
 	cursor, err := models.SettingModel.Col().Find(ctx, bson.M{
 		"name": bson.M{"$in": settingNames},
 	})
@@ -140,41 +140,12 @@ func SyncSpaces() error {
 	return nil
 }
 
-// ─── Ads Sync ────────────────────────────────────────────────────────
-
-// SyncAds fetches all active ads from MongoDB and loads them into memory cache.
-func SyncAds() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	cursor, err := models.AdsModel.Col().Find(ctx, bson.M{"status": "active"})
-	if err != nil {
-		return err
-	}
-	defer cursor.Close(ctx)
-
-	var ads []models.Ads
-	if err := cursor.All(ctx, &ads); err != nil {
-		return err
-	}
-
-	// Write to conf/ads.json
-	if err := writeJSONFile(adsFilePath(), ads); err != nil {
-		log.Printf("⚠️ Failed to write ads.json: %v", err)
-	}
-
-	// Load into memory cache
-	LoadAds(ads)
-
-	return nil
-}
-
 // ─── Scheduler ───────────────────────────────────────────────────────
 
 // StartSettingSyncScheduler starts a background goroutine that syncs settings,
-// domains, spaces, and ads immediately and then every 1 minute.
+// domains, and spaces immediately and then every 1 minute.
 func StartSettingSyncScheduler(ctx context.Context) {
-	log.Println("📋 Syncing settings, domains, spaces, ads from database...")
+	log.Println("📋 Syncing settings, domains, spaces from database...")
 
 	if err := SyncSettings(); err != nil {
 		log.Printf("⚠️ Failed to sync settings: %v", err)
@@ -184,9 +155,6 @@ func StartSettingSyncScheduler(ctx context.Context) {
 	}
 	if err := SyncSpaces(); err != nil {
 		log.Printf("⚠️ Failed to sync spaces: %v", err)
-	}
-	if err := SyncAds(); err != nil {
-		log.Printf("⚠️ Failed to sync ads: %v", err)
 	}
 
 	for {
@@ -208,9 +176,6 @@ func StartSettingSyncScheduler(ctx context.Context) {
 			}
 			if err := SyncSpaces(); err != nil {
 				log.Printf("⚠️ Failed to sync spaces: %v", err)
-			}
-			if err := SyncAds(); err != nil {
-				log.Printf("⚠️ Failed to sync ads: %v", err)
 			}
 		}
 	}

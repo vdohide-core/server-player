@@ -145,16 +145,18 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch {
+	case strings.HasPrefix(path, "/vast/"):
+		h.Vast(w, r)
 	case strings.HasSuffix(path, "/playlist.m3u8"):
-		h.HandlePlaylist(w, r)
+		HandleNotFound(w, r)
 	case strings.HasSuffix(path, "/video.m3u8"):
-		h.HandleVideo(w, r)
+		HandleNotFound(w, r)
 	case strings.HasSuffix(path, "/sprite/sprite.vtt"):
 		h.HandleSpriteVTT(w, r)
 	case strings.Contains(path, "/sprite/") && strings.HasSuffix(path, ".jpg"):
 		h.HandleSpriteImage(w, r)
 	case strings.HasPrefix(path, "/thumb/") && strings.HasSuffix(path, ".jpg"):
-		h.HandlePoster(w, r)
+		HandleNotFound(w, r)
 	default:
 		h.StreamFile(w, r)
 	}

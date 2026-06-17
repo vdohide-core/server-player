@@ -26,28 +26,13 @@
     <link rel="stylesheet" type="text/css" href="/css/continue.min.css" />
     <!-- Player Configuration -->
     <script type="text/javascript">
-        const base_color = {{.BaseColor }};
         window.playerConfig = {{.PlayerConfig }};
+        const base_color = window.playerConfig.baseColor || "#ff8800";
+        document.documentElement.style.setProperty("--base-color", base_color);
     </script>
 
-    <style>
-        :root {
-            --base-color: {
-                    {
-                    .BaseColor
-                }
-            }
-
-            ;
-        }
-
-            {
-                {
-                .CustomCss
-            }
-        }
-    </style>
-    <title>{{.Title}}</title>
+    <style>{{.CustomCss}}</style>
+    <title>{{ .Title }}</title>
 </head>
 
 <body>
@@ -59,17 +44,17 @@
             </svg>
         </div>
     </div>
-    <!-- Core Player -->
-    <script defer src="/js/jw-v2.js"></script>
+    <!-- Core Player (playlist.json feed) -->
+    <script defer src="/js/jw-playlist.js"></script>
 
     <!-- Optional Modules (ลบ/comment ออกเพื่อปิดฟีเจอร์) -->
     <script src="/js/prewarm.js"></script> <!-- HLS CDN prewarm lookahead -->
     <script src="/js/bandwidth.js"></script> <!-- Network speed & bandwidth UI -->
     <script src="/js/analytics.js"></script> <!-- Watch time & bandwidth reporting -->
     <script src="/js/advert-image.js"></script> <!-- Image ad overlay -->
+    <script src="/js/advert-script.js"></script> <!-- Script ad injection -->
 
-    {{.CustomJs}}
-    {{.AdJavascript}}
+    <!-- {{.CustomJs}} -->
 </body>
 
 </html>

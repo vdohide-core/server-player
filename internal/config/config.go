@@ -20,7 +20,6 @@ type Config struct {
 	StoragePath  string
 	ScraperURL   string
 	DomainStatic string
-	LogPath      string
 }
 
 // Load reads configuration from environment variables (and .env file).
@@ -44,7 +43,6 @@ func Load() {
 		StorageId:    getEnv("STORAGE_ID", ""),
 		StoragePath:  getEnv("STORAGE_PATH", "./files"),
 		ScraperURL:   getEnv("SCRAPER_URL", ""),
-		LogPath:      getEnv("LOG_PATH", "logs/server-player.log"),
 		DomainStatic: getEnv("DOMAIN_STATIC", ""),
 	}
 }

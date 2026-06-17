@@ -11,7 +11,7 @@ import (
 	"server-player/internal/services"
 )
 
-// Vast handles GET /vast/{domainSlug}.xml — generates VAST 3.0 XML from ads
+// Vast handles GET /vast/{domainSlug}.xml — generates VAST 3.0 XML from adverts
 func (h *Handler) Vast(w http.ResponseWriter, r *http.Request) {
 	// ── Extract slug from path: /vast/{slug}.xml ──
 	path := strings.TrimPrefix(r.URL.Path, "/vast/")
@@ -22,15 +22,15 @@ func (h *Handler) Vast(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ── Special case: hobby plan ads ──
+	// ── Special case: hobby plan adverts ──
 	if slug == "hobby" {
 		hobby := services.GetAdvertHobby()
-		if len(hobby.Vdo) == 0 {
+		videoAds := services.ActiveVideoAds(hobby)
+		if len(videoAds) == 0 {
 			writeEmptyVast(w)
 			return
 		}
-		// Build VAST from hobby vdo items
-		buildHobbyVast(w, hobby.Vdo)
+		buildAdvertsVast(w, videoAds)
 		return
 	}
 
@@ -41,48 +41,36 @@ func (h *Handler) Vast(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ── Check if domain has video ads configured ──
-	if domain.Ads != nil && len(domain.Ads.Video) == 0 {
+	videoAds := services.ActiveVideoAds(domain.Adverts)
+	if len(videoAds) == 0 {
 		writeEmptyVast(w)
 		return
 	}
 
-	// ── Resolve ads from domain's space ──
-	if domain.SpaceID != nil && *domain.SpaceID != "" {
-		ads := services.FindAdsBySpaceID(*domain.SpaceID)
-		if len(ads) > 0 {
-			buildAdsVast(w, ads)
-			return
-		}
-	}
-
-	// Domain has ads config but no matching ads found → empty
-	writeEmptyVast(w)
+	buildAdvertsVast(w, videoAds)
 }
 
-// buildHobbyVast builds VAST XML from hobby Ad IDs.
-func buildHobbyVast(w http.ResponseWriter, adIDs []string) {
+// buildAdvertsVast builds VAST XML from embedded video advert entries.
+func buildAdvertsVast(w http.ResponseWriter, adList []models.AdContent) {
 	var ads strings.Builder
 	hasActive := false
 
-	for _, adID := range adIDs {
-		ad := services.FindAdByID(adID)
-		if ad == nil || ad.Content == nil || ad.Content.MP4URL == nil || *ad.Content.MP4URL == "" {
+	for _, ad := range adList {
+		if ad.MP4URL == nil || *ad.MP4URL == "" {
 			continue
 		}
 		hasActive = true
 
-		vastID := randomID(10)
+		adID := randomID(10)
 		skipSeconds := 5
-		if ad.Content.SkipSeconds != nil {
-			skipSeconds = *ad.Content.SkipSeconds
+		if ad.SkipSeconds != nil {
+			skipSeconds = *ad.SkipSeconds
 		}
 		skipOffset := fmt.Sprintf("00:00:%02d", skipSeconds)
 
-		name := ad.Name
-		websiteUrl := ""
-		if ad.Content.WebsiteURL != nil {
-			websiteUrl = *ad.Content.WebsiteURL
+		websiteURL := ""
+		if ad.WebsiteURL != nil {
+			websiteURL = *ad.WebsiteURL
 		}
 
 		ads.WriteString(fmt.Sprintf(`
@@ -111,7 +99,7 @@ func buildHobbyVast(w http.ResponseWriter, adIDs []string) {
           <Creative> </Creative>
         </Creatives>
       </InLine>
-    </Ad>`, vastID, html.EscapeString(name), skipOffset, html.EscapeString(websiteUrl), vastID, html.EscapeString(*ad.Content.MP4URL)))
+    </Ad>`, adID, html.EscapeString(ad.Name), skipOffset, html.EscapeString(websiteURL), adID, html.EscapeString(*ad.MP4URL)))
 	}
 
 	if !hasActive {
@@ -148,83 +136,4 @@ func randomID(n int) string {
 		b[i] = letters[rand.Intn(len(letters))]
 	}
 	return string(b)
-}
-
-// buildAdsVast builds VAST XML from new Ad model entries.
-func buildAdsVast(w http.ResponseWriter, adList []models.Ads) {
-	var ads strings.Builder
-	hasActive := false
-
-	for _, ad := range adList {
-		if ad.Type != "video" || ad.Content == nil {
-			continue
-		}
-		if ad.Content.MP4URL == nil || *ad.Content.MP4URL == "" {
-			continue
-		}
-		hasActive = true
-
-		adID := randomID(10)
-		skipSeconds := 0
-		if ad.Content.SkipSeconds != nil {
-			skipSeconds = *ad.Content.SkipSeconds
-		}
-		skipOffset := fmt.Sprintf("00:00:%02d", skipSeconds)
-
-		websiteURL := ""
-		if ad.Content.WebsiteURL != nil {
-			websiteURL = *ad.Content.WebsiteURL
-		}
-
-		placement := "pre_roll"
-		if ad.Content.Placement != nil {
-			placement = *ad.Content.Placement
-		}
-		_ = placement // reserved for future VAST placement logic
-
-		ads.WriteString(fmt.Sprintf(`
-    <Ad id="%s" sequence="0">
-      <InLine>
-        <AdSystem version="2.0">JW Player</AdSystem>
-        <AdTitle>%s</AdTitle>
-        <Creatives>
-          <Creative sequence="0">
-            <Linear skipoffset="%s">
-              <VideoClicks>
-                <ClickThrough>%s</ClickThrough>
-              </VideoClicks>
-              <MediaFiles>
-                <MediaFile
-                  id="%s"
-                  delivery="progressive"
-                  type="video/mp4"
-                  bitrate="400"
-                  width="640"
-                  height="360"
-                >%s</MediaFile>
-              </MediaFiles>
-            </Linear>
-          </Creative>
-          <Creative> </Creative>
-        </Creatives>
-      </InLine>
-    </Ad>`, adID, html.EscapeString(ad.Name), skipOffset, html.EscapeString(websiteURL), adID, html.EscapeString(*ad.Content.MP4URL)))
-	}
-
-	if !hasActive {
-		writeEmptyVast(w)
-		return
-	}
-
-	vast := fmt.Sprintf(`<?xml version="1.0"?>
-<VAST
-  version="3.0"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:noNamespaceSchemaLocation="vast3_draft.xsd"
->%s
-</VAST>`, ads.String())
-
-	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
-	w.Header().Set("Cache-Control", "public, max-age=60")
-	w.Write([]byte(vast))
 }

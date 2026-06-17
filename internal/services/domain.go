@@ -39,14 +39,6 @@ func spacesFilePath() string {
 	return filepath.Join(exe, "conf", "spaces.json")
 }
 
-func adsFilePath() string {
-	exe, err := executableDir()
-	if err != nil {
-		return filepath.Join("conf", "ads.json")
-	}
-	return filepath.Join(exe, "conf", "ads.json")
-}
-
 // ─── Domain Cache ─────────────────────────────────────────────────────
 
 var (
@@ -94,7 +86,27 @@ func LoadDomains(domains []models.CustomDomain) {
 	domainCache = cache
 	domainCacheMu.Unlock()
 
-	log.Printf("📋 Loaded %d custom domains → conf/domains.json", len(cache))
+	// log.Printf("📋 Loaded %d custom domains → conf/domains.json", len(cache))
+}
+
+// FindDomainSlugBySpaceID returns the slug of the first enabled active domain in a space.
+func FindDomainSlugBySpaceID(spaceID string) string {
+	if spaceID == "" {
+		return ""
+	}
+
+	domainCacheMu.RLock()
+	defer domainCacheMu.RUnlock()
+
+	for _, d := range domainCache {
+		if d == nil || !d.Enable || d.Status != "active" || d.Slug == "" {
+			continue
+		}
+		if d.SpaceID != nil && *d.SpaceID == spaceID {
+			return d.Slug
+		}
+	}
+	return ""
 }
 
 // FindDomainBySlug looks up a domain by slug from the in-memory cache.
@@ -145,7 +157,7 @@ func LoadSpaces(spaces []models.Workspace) {
 	spaceCache = cache
 	spaceCacheMu.Unlock()
 
-	log.Printf("📋 Loaded %d spaces → conf/spaces.json", len(cache))
+	// log.Printf("📋 Loaded %d spaces → conf/spaces.json", len(cache))
 }
 
 // GetSpacePlan returns the plan for a space, nil if not found or no plan.
@@ -172,10 +184,10 @@ func BuildPlayerConfigFromDomain(
 	defaults := GetPlayerSettings()
 
 	config := PlayerConfig{
-		Title:               title,
-		Poster:              posterURL,
-		PlaylistURL:         playlistURL,
-		Medias:              medias,
+		Title:       title,
+		Poster:      posterURL,
+		PlaylistURL: playlistURL,
+		Medias:      medias,
 		// Apply defaults first
 		BaseColor:           defaults.BaseColor,
 		DisplayTitle:        defaults.DisplayTitle,
@@ -198,23 +210,23 @@ func BuildPlayerConfigFromDomain(
 
 	// Override with domain.Player if present
 	if p != nil {
-		config.BaseColor       = p.BaseColor
-		config.DisplayTitle    = p.DisplayTitle
-		config.Autostart       = p.AutoPlay
-		config.Mute            = p.MuteSound
-		config.Repeat          = p.RepeatVideo
-		config.ContinuePlayback    = p.ContinuePlay
+		config.BaseColor = p.BaseColor
+		config.DisplayTitle = p.DisplayTitle
+		config.Autostart = p.AutoPlay
+		config.Mute = p.MuteSound
+		config.Repeat = p.RepeatVideo
+		config.ContinuePlayback = p.ContinuePlay
 		config.ContinuePlaybackArk = p.ContinuePlayArk
-		config.Sharing         = p.Sharing
-		config.Captions        = p.Captions
-		config.PlaybackRate    = p.PlaybackRate
-		config.Keyboard        = p.Keyboard
-		config.Download        = p.Download
-		config.Pip             = p.PIP
+		config.Sharing = p.Sharing
+		config.Captions = p.Captions
+		config.PlaybackRate = p.PlaybackRate
+		config.Keyboard = p.Keyboard
+		config.Download = p.Download
+		config.Pip = p.PIP
 		config.ShowPreviewTime = p.ShowPreviewTime
-		config.FastForward     = p.FastForward
-		config.Rewind          = p.Rewind
-		config.SeekStep        = p.SeekStep
+		config.FastForward = p.FastForward
+		config.Rewind = p.Rewind
+		config.SeekStep = p.SeekStep
 
 		// Watermark from logo fields (pointer-safe)
 		if p.LogoImageURL != nil && *p.LogoImageURL != "" {

@@ -3,301 +3,207 @@ package services
 import (
 	"encoding/json"
 	"log"
-	"sync"
 
 	"server-player/internal/db/models"
 )
 
 // ─── Advert Hobby (advert_hobby) ─────────────────────────────────────
 
-// AdvertHobby represents the advert_hobby setting value.
-// Fields contain Ad document IDs (not full objects).
-type AdvertHobby struct {
-	Vdo        []string `json:"vdo"`
-	Image      []string `json:"image"`
-	Javascript []string `json:"javascript"`
-}
-
-// GetAdvertHobby reads advert_hobby from setting.json
-func GetAdvertHobby() AdvertHobby {
+// GetAdvertHobby reads advert_hobby from setting.json (ResultDomainAdvert format).
+func GetAdvertHobby() *models.DomainAdverts {
 	settings, err := ReadSettingFile()
 	if err != nil {
-		return AdvertHobby{}
+		return nil
 	}
 	raw, exists := settings["advert_hobby"]
 	if !exists {
-		return AdvertHobby{}
+		return nil
 	}
-	var result AdvertHobby
+	var result models.DomainAdverts
 	if err := json.Unmarshal(raw, &result); err != nil {
 		log.Printf("⚠️ Cannot parse advert_hobby: %v", err)
-		return AdvertHobby{}
-	}
-	return result
-}
-
-// FindAdByID looks up an ad by ID from the in-memory ads cache.
-func FindAdByID(adID string) *models.Ads {
-	adCacheMu.RLock()
-	defer adCacheMu.RUnlock()
-
-	for _, ads := range adCache {
-		for i := range ads {
-			if ads[i].ID == adID {
-				return &ads[i]
-			}
-		}
-	}
-	return nil
-}
-
-// ─── Advert Video (advert_vdo) ────────────────────────────────────────
-
-// AdvertVdoItem represents a single video ad entry
-type AdvertVdoItem struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	MP4Url      string `json:"mp4Url"`
-	WebsiteUrl  string `json:"websiteUrl"`
-	SkipSeconds int    `json:"skipSeconds"`
-	IsActive    bool   `json:"isActive"`
-}
-
-// AdvertVdo represents the advert_vdo setting
-type AdvertVdo struct {
-	IsActive bool            `json:"isActive"` // master switch
-	Items    []AdvertVdoItem `json:"items"`
-}
-
-// GetAdvertVdo reads advert_vdo settings from setting.json
-// Format: array of AdvertVdoItem directly (not wrapped in object)
-func GetAdvertVdo() []AdvertVdoItem {
-	settings, err := ReadSettingFile()
-	if err != nil {
-		log.Printf("⚠️ Cannot read setting.json (advert_vdo): %v", err)
 		return nil
 	}
-	raw, exists := settings["advert_vdo"]
-	if !exists {
-		return nil
-	}
-	var items []AdvertVdoItem
-	if err := json.Unmarshal(raw, &items); err != nil {
-		log.Printf("⚠️ Cannot parse advert_vdo: %v", err)
-		return nil
-	}
-	return items
-}
-
-// ─── Advert Image (advert_image) ─────────────────────────────────────
-
-// AdvertImage represents the advert_image setting
-type AdvertImageSetting struct {
-	IsActive   bool     `json:"isActive"`
-	ImageUrl   string   `json:"imageUrl"`
-	WebsiteUrl string   `json:"websiteUrl"`
-	ShowOn     []string `json:"showOn"` // ready, end, pause
-}
-
-// GetAdvertImage reads advert_image settings from setting.json
-func GetAdvertImage() AdvertImageSetting {
-	defaults := AdvertImageSetting{}
-	settings, err := ReadSettingFile()
-	if err != nil {
-		log.Printf("⚠️ Cannot read setting.json (advert_image): %v", err)
-		return defaults
-	}
-	raw, exists := settings["advert_image"]
-	if !exists {
-		return defaults
-	}
-	var result AdvertImageSetting
-	if err := json.Unmarshal(raw, &result); err != nil {
-		log.Printf("⚠️ Cannot parse advert_image: %v", err)
-		return defaults
-	}
-	return result
-}
-
-// ─── Advert Javascript (advert_javascript) ───────────────────────────
-
-// AdvertJavascriptSetting represents the advert_javascript setting
-// Format: plain string (raw script HTML)
-type AdvertJavascriptSetting struct {
-	Code string // the raw value from setting.json
-}
-
-// GetAdvertJavascript reads advert_javascript settings from setting.json
-// Format: plain string directly
-func GetAdvertJavascript() AdvertJavascriptSetting {
-	settings, err := ReadSettingFile()
-	if err != nil {
-		log.Printf("⚠️ Cannot read setting.json (advert_javascript): %v", err)
-		return AdvertJavascriptSetting{}
-	}
-	raw, exists := settings["advert_javascript"]
-	if !exists {
-		return AdvertJavascriptSetting{}
-	}
-	// Try as plain string first
-	var code string
-	if err := json.Unmarshal(raw, &code); err != nil {
-		log.Printf("⚠️ Cannot parse advert_javascript: %v", err)
-		return AdvertJavascriptSetting{}
-	}
-	return AdvertJavascriptSetting{Code: code}
-}
-
-// ─── Ads Cache (new system) ───────────────────────────────────────────
-
-var (
-	adCache   map[string][]models.Ads // spaceId → active ads
-	adCacheMu sync.RWMutex
-)
-
-// LoadAds loads ads into the in-memory cache grouped by spaceId.
-func LoadAds(ads []models.Ads) {
-	cache := make(map[string][]models.Ads)
-	for i := range ads {
-		ad := ads[i]
-		if ad.Status != "active" {
-			continue
-		}
-		cache[ad.SpaceID] = append(cache[ad.SpaceID], ad)
-	}
-
-	adCacheMu.Lock()
-	adCache = cache
-	adCacheMu.Unlock()
-
-	log.Printf("📋 Loaded %d active ads → ads cache", len(ads))
-}
-
-// FindAdsBySpaceID returns active ads for a given spaceId from the cache.
-func FindAdsBySpaceID(spaceID string) []models.Ads {
-	if spaceID == "" {
-		return nil
-	}
-
-	adCacheMu.RLock()
-	defer adCacheMu.RUnlock()
-
-	return adCache[spaceID]
+	return &result
 }
 
 // ─── Resolved Ad Config ───────────────────────────────────────────────
 
-// ResolvedAds is the final ad configuration passed to the player/vast
+// ResolvedAds is the final ad configuration passed to the player/vast.
 type ResolvedAds struct {
-	// VAST video ads
-	VastEnabled bool
-	VdoItems    []AdvertVdoItem
-
-	// Image overlay ads (multiple supported, JS picks randomly)
-	AdvertImages []AdvertImageConfig
-
-	// Javascript ad scripts (all injected)
-	AdJavascripts []string
+	VastEnabled    bool
+	AdvertImages   []AdvertImageConfig
+	AdJavascripts  []string
 }
 
-// ResolveAdsFromAds converts []models.Ads into ResolvedAds for paid plan.
-func ResolveAdsFromAds(ads []models.Ads) ResolvedAds {
+// ResolveAdsFromAdverts converts embedded domain adverts into ResolvedAds.
+func ResolveAdsFromAdverts(adverts *models.DomainAdverts) ResolvedAds {
 	result := ResolvedAds{}
+	if adverts == nil {
+		return result
+	}
 
-	for _, ad := range ads {
-		if ad.Content == nil {
-			continue
-		}
-		switch ad.Type {
-		case "video":
-			if ad.Content.MP4URL != nil && *ad.Content.MP4URL != "" {
+	if adverts.Video.Enabled {
+		for _, ad := range adverts.Video.List {
+			if !ad.Enabled {
+				continue
+			}
+			if ad.MP4URL != nil && *ad.MP4URL != "" {
 				result.VastEnabled = true
 			}
-		case "image":
-			if ad.Content.ImageURL != nil && *ad.Content.ImageURL != "" {
-				websiteUrl := ""
-				if ad.Content.WebsiteURL != nil {
-					websiteUrl = *ad.Content.WebsiteURL
+		}
+	}
+
+	if adverts.Image.Enabled {
+		for _, ad := range adverts.Image.List {
+			if !ad.Enabled {
+				continue
+			}
+			if ad.ImageURL != nil && *ad.ImageURL != "" {
+				websiteURL := ""
+				if ad.WebsiteURL != nil {
+					websiteURL = *ad.WebsiteURL
 				}
 				result.AdvertImages = append(result.AdvertImages, AdvertImageConfig{
-					ImageUrl:   *ad.Content.ImageURL,
-					WebsiteUrl: websiteUrl,
-					ShowOn:     ad.Content.ShowOn,
+					ImageUrl:   *ad.ImageURL,
+					WebsiteUrl: websiteURL,
+					ShowOn:     ad.ShowOn,
 				})
 			}
-		case "script", "javascript":
-			if ad.Content.Script != nil && *ad.Content.Script != "" {
-				result.AdJavascripts = append(result.AdJavascripts, *ad.Content.Script)
+		}
+	}
+
+	if adverts.Script.Enabled {
+		for _, ad := range adverts.Script.List {
+			if !ad.Enabled {
+				continue
+			}
+			if ad.Script != nil && *ad.Script != "" {
+				result.AdJavascripts = append(result.AdJavascripts, *ad.Script)
 			}
 		}
 	}
 
 	return result
+}
+
+// ResolveAdSlug returns the ad feed slug: "hobby" or custom domain slug.
+func ResolveAdSlug(planType string, domain *models.CustomDomain, spaceID *string) string {
+	if planType != "" && planType != models.PlanTypeHobby {
+		if domain != nil && domain.Slug != "" {
+			return domain.Slug
+		}
+		if spaceID != nil && *spaceID != "" {
+			if slug := FindDomainSlugBySpaceID(*spaceID); slug != "" {
+				return slug
+			}
+		}
+		return ""
+	}
+	return "hobby"
+}
+
+// ResolveAdvertsBySlug loads advert config for hobby or a domain slug.
+func ResolveAdvertsBySlug(adSlug string) *models.DomainAdverts {
+	if adSlug == "" || adSlug == "hobby" {
+		return GetAdvertHobby()
+	}
+	domain := FindDomainBySlug(adSlug)
+	if domain == nil {
+		return nil
+	}
+	return domain.Adverts
+}
+
+// ResolveImageAdsBySlug returns image overlay ads for an ad feed slug.
+func ResolveImageAdsBySlug(adSlug string) []AdvertImageConfig {
+	return ResolveAdsFromAdverts(ResolveAdvertsBySlug(adSlug)).AdvertImages
+}
+
+// ResolveScriptAdsBySlug returns script adverts for an ad feed slug.
+func ResolveScriptAdsBySlug(adSlug string) []string {
+	return ResolveAdsFromAdverts(ResolveAdvertsBySlug(adSlug)).AdJavascripts
+}
+
+// BuildImageAdsFeed builds /image/{adSlug}.json in static host format.
+func BuildImageAdsFeed(adSlug string) AdvertCategoryFeed {
+	adverts := ResolveAdvertsBySlug(adSlug)
+	feed := AdvertCategoryFeed{Enabled: false, List: []AdvertFeedListItem{}}
+	if adverts == nil || !adverts.Image.Enabled {
+		return feed
+	}
+
+	for _, ad := range adverts.Image.List {
+		if !ad.Enabled || ad.ImageURL == nil || *ad.ImageURL == "" {
+			continue
+		}
+		item := AdvertFeedListItem{
+			ID:       ad.ID,
+			Name:     ad.Name,
+			ImageUrl: *ad.ImageURL,
+			ShowOn:   ad.ShowOn,
+		}
+		if ad.WebsiteURL != nil {
+			item.WebsiteUrl = *ad.WebsiteURL
+		}
+		feed.List = append(feed.List, item)
+	}
+	feed.Enabled = len(feed.List) > 0
+	return feed
+}
+
+// BuildScriptAdsFeed builds /script/{adSlug}.json in static host format.
+func BuildScriptAdsFeed(adSlug string) AdvertCategoryFeed {
+	adverts := ResolveAdvertsBySlug(adSlug)
+	feed := AdvertCategoryFeed{Enabled: false, List: []AdvertFeedListItem{}}
+	if adverts == nil || !adverts.Script.Enabled {
+		return feed
+	}
+
+	for _, ad := range adverts.Script.List {
+		if !ad.Enabled || ad.Script == nil || *ad.Script == "" {
+			continue
+		}
+		feed.List = append(feed.List, AdvertFeedListItem{
+			ID:     ad.ID,
+			Name:   ad.Name,
+			Script: *ad.Script,
+		})
+	}
+	feed.Enabled = len(feed.List) > 0
+	return feed
 }
 
 // ResolveAdsFromPlan selects ad config based on plan type.
 //
-//   - planType "hobby" or "" → ads from advert_hobby setting
-//   - planType "pro"/"business"/"enterprise" → use ads from ads collection (by spaceId)
-func ResolveAdsFromPlan(planType string, spaceID string) ResolvedAds {
-	if planType != "" && planType != models.PlanTypeHobby && spaceID != "" {
-		ads := FindAdsBySpaceID(spaceID)
-		if len(ads) > 0 {
-			return ResolveAdsFromAds(ads)
+//   - planType "hobby" or "" → adverts from advert_hobby setting
+//   - paid plans → adverts embedded on the custom domain
+func ResolveAdsFromPlan(planType string, domain *models.CustomDomain) ResolvedAds {
+	if planType != "" && planType != models.PlanTypeHobby {
+		if domain != nil {
+			return ResolveAdsFromAdverts(domain.Adverts)
 		}
-		// No ads configured for this space → no ads
 		return ResolvedAds{}
 	}
 
-	// Hobby (or no plan): read Ad IDs from advert_hobby, lookup from ads cache
-	hobby := GetAdvertHobby()
-	result := ResolvedAds{}
-
-	// Resolve video ad IDs → enable VAST if any active
-	for _, adID := range hobby.Vdo {
-		ad := FindAdByID(adID)
-		if ad != nil && ad.Content != nil && ad.Content.MP4URL != nil && *ad.Content.MP4URL != "" {
-			result.VastEnabled = true
-			break
-		}
-	}
-
-	// Resolve image ad IDs
-	for _, adID := range hobby.Image {
-		ad := FindAdByID(adID)
-		if ad != nil && ad.Content != nil && ad.Content.ImageURL != nil && *ad.Content.ImageURL != "" {
-			websiteUrl := ""
-			if ad.Content.WebsiteURL != nil {
-				websiteUrl = *ad.Content.WebsiteURL
-			}
-			result.AdvertImages = append(result.AdvertImages, AdvertImageConfig{
-				ImageUrl:   *ad.Content.ImageURL,
-				WebsiteUrl: websiteUrl,
-				ShowOn:     ad.Content.ShowOn,
-			})
-		}
-	}
-
-	// Resolve javascript ad IDs
-	for _, adID := range hobby.Javascript {
-		ad := FindAdByID(adID)
-		if ad != nil && ad.Content != nil && ad.Content.Script != nil && *ad.Content.Script != "" {
-			result.AdJavascripts = append(result.AdJavascripts, *ad.Content.Script)
-		}
-	}
-
-	return result
+	return ResolveAdsFromAdverts(GetAdvertHobby())
 }
 
-// ─── Legacy helpers ───────────────────────────────────────────────────
-
-// IsAdvertVideoEnabled returns whether global video ads have any active items
-func IsAdvertVideoEnabled() bool {
-	items := GetAdvertVdo()
-	for _, item := range items {
-		if item.IsActive {
-			return true
-		}
+// ActiveVideoAds returns enabled video ads with a valid mp4 URL.
+func ActiveVideoAds(adverts *models.DomainAdverts) []models.AdContent {
+	if adverts == nil || !adverts.Video.Enabled {
+		return nil
 	}
-	return false
+
+	var active []models.AdContent
+	for _, ad := range adverts.Video.List {
+		if !ad.Enabled {
+			continue
+		}
+		if ad.MP4URL == nil || *ad.MP4URL == "" {
+			continue
+		}
+		active = append(active, ad)
+	}
+	return active
 }

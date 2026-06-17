@@ -35,12 +35,40 @@ type AdvertImageConfig struct {
 	ShowOn     []string `json:"showOn"`
 }
 
+// EmbedPlayerConfig is the minimal config injected into embed.html.
+type EmbedPlayerConfig struct {
+	AdSlug              string `json:"adSlug"`
+	BaseColor           string `json:"baseColor"`
+	ContinuePlayback    bool   `json:"continuePlayBack"`
+	ContinuePlaybackArk bool   `json:"continuePlayBackArk"`
+	Slug                string `json:"slug"`
+	Static              string `json:"static"`
+}
+
+// AdvertCategoryFeed matches the static host ad JSON format.
+type AdvertCategoryFeed struct {
+	Enabled bool                 `json:"enabled"`
+	List    []AdvertFeedListItem `json:"list"`
+}
+
+// AdvertFeedListItem is a single entry in an ad category feed.
+type AdvertFeedListItem struct {
+	ID         string   `json:"id,omitempty"`
+	Name       string   `json:"name,omitempty"`
+	ImageUrl   string   `json:"imageUrl,omitempty"`
+	WebsiteUrl string   `json:"websiteUrl,omitempty"`
+	ShowOn     []string `json:"showOn,omitempty"`
+	Script     string   `json:"script,omitempty"`
+}
+
 // PlayerConfig holds all config passed to the player template (rendered as JS)
 type PlayerConfig struct {
-	Title           string             `json:"title"`
-	Poster          string             `json:"poster"`
-	PlaylistURL     string             `json:"playlistUrl"`
-	Medias          map[string]string  `json:"medias"`
+	Title               string              `json:"title"`
+	Slug                string              `json:"slug,omitempty"`
+	Poster              string              `json:"poster,omitempty"`
+	PlaylistURL         string              `json:"playlistUrl,omitempty"`
+	PlaylistFeedURL     string              `json:"playlistFeedUrl,omitempty"`
+	Medias              map[string]string   `json:"medias,omitempty"`
 	SpriteVttUrl    string             `json:"spriteVttUrl,omitempty"`
 	BaseColor       string             `json:"baseColor"`
 	DisplayTitle    bool               `json:"displayTitle"`

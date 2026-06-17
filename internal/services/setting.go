@@ -2,8 +2,9 @@ package services
 
 import (
 	"encoding/json"
-	"log"
 	"os"
+	"strings"
+
 	"server-player/internal/config"
 )
 
@@ -59,29 +60,38 @@ func GetDomainPlaylist(fallbackHost string) string {
 }
 
 // GetDomainAds fetches the domain_ads setting. Fallbacks to domain_content, then fallbackHost.
-func GetDomainAds(fallbackHost string) string {
-	val := getStringSetting("domain_ads")
-	if val != "" {
-		return val
-	}
-	return GetDomainContent(fallbackHost)
-}
+// func GetDomainAds(fallbackHost string) string {
+// 	val := getStringSetting("domain_ads")
+// 	if val != "" {
+// 		return val
+// 	}
+// 	return GetDomainContent(fallbackHost)
+// }
 
 // GetDomainPreview fetches the domain_preview setting. Returns empty if not set.
 func GetDomainPreview() string {
-	return getStringSetting("domain_preview")
+	return normalizeDomainHost(getStringSetting("domain_preview"))
 }
 
-// GetDomainStatic fetches the domain_static setting. Returns empty if not set.
+// GetDomainStatic fetches the domain_static setting.
+// Synced setting.json takes priority; DOMAIN_STATIC env is a dev fallback only.
 func GetDomainStatic() string {
-	val := config.AppConfig.DomainStatic
-	if val != "" {
+	if val := normalizeDomainHost(getStringSetting("domain_static")); val != "" {
 		return val
 	}
-	return getStringSetting("domain_static")
+	return normalizeDomainHost(config.AppConfig.DomainStatic)
 }
 
-// unused log helper
-func logWarn(msg string, args ...interface{}) {
-	log.Printf(msg, args...)
+// normalizeDomainHost strips scheme/trailing slash from a host setting value.
+func normalizeDomainHost(host string) string {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return ""
+	}
+	if strings.HasPrefix(host, "https://") {
+		host = strings.TrimPrefix(host, "https://")
+	} else if strings.HasPrefix(host, "http://") {
+		host = strings.TrimPrefix(host, "http://")
+	}
+	return strings.TrimRight(host, "/")
 }
