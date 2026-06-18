@@ -271,20 +271,12 @@ func (h *Handler) resolveEmbed(r *http.Request, slug string) (*EmbedResolveResul
 	}
 
 	spriteVttURL := ""
-	var thumbMedia models.Media
-	tErr := models.MediaModel.Col().FindOne(ctx, bson.M{
-		"fileId":    file.ID,
-		"type":      models.MediaTypeThumbnail,
-		"deletedAt": nil,
-	}).Decode(&thumbMedia)
-	if tErr == nil {
-		if staticHost != "" {
-			spriteVttURL = reqProto + "://" + staticHost + "/" + slug + "/sprite/sprite.vtt"
-		} else if previewHost != "" {
-			spriteVttURL = reqProto + "://" + previewHost + "/" + slug + "/sprite/sprite.vtt"
-		} else {
-			spriteVttURL = "/" + slug + "/sprite/sprite.vtt"
-		}
+	if staticHost != "" {
+		spriteVttURL = reqProto + "://" + staticHost + "/" + slug + "/sprite/sprite.vtt"
+	} else if previewHost != "" {
+		spriteVttURL = reqProto + "://" + previewHost + "/" + slug + "/sprite/sprite.vtt"
+	} else {
+		spriteVttURL = "/" + slug + "/sprite/sprite.vtt"
 	}
 
 	playlistFeedURL := fmt.Sprintf("%s://%s/playlist/%s.json", reqProto, r.Host, slug)
