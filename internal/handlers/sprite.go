@@ -98,7 +98,7 @@ func (h *Handler) HandleSpriteVTT(w http.ResponseWriter, r *http.Request) {
 	w.Write(responseBody)
 }
 
-// HandleSpriteImage handles GET /{fileSlug}/sprite/{n}.jpg
+// HandleSpriteImage handles GET /{fileSlug}/sprite/sprite-{n}.jpg
 func (h *Handler) HandleSpriteImage(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/")
 	parts := strings.SplitN(path, "/sprite/", 2)
@@ -208,10 +208,10 @@ func (h *Handler) HandleSpriteImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func isValidSpriteFilename(filename string) bool {
-	if !strings.HasSuffix(filename, ".jpg") {
+	if !strings.HasPrefix(filename, "sprite-") || !strings.HasSuffix(filename, ".jpg") {
 		return false
 	}
-	name := strings.TrimSuffix(filename, ".jpg")
+	name := strings.TrimSuffix(strings.TrimPrefix(filename, "sprite-"), ".jpg")
 	if name == "" {
 		return false
 	}
