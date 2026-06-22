@@ -7,12 +7,11 @@ type JWPlaylistFeed struct {
 
 // JWPlaylistItem is a single media item in the JW playlist feed.
 type JWPlaylistItem struct {
-	Title      string              `json:"title"`
-	MediaID    string              `json:"mediaid,omitempty"`
-	Image      string              `json:"image,omitempty"`
-	Sources    []JWPlaylistSource  `json:"sources"`
-	Tracks     []JWPlaylistTrack   `json:"tracks,omitempty"`
-	AdSchedule []JWPlaylistAdBreak `json:"adschedule,omitempty"`
+	Title   string             `json:"title"`
+	MediaID string             `json:"mediaid,omitempty"`
+	Image   string             `json:"image,omitempty"`
+	Sources []JWPlaylistSource `json:"sources"`
+	Tracks  []JWPlaylistTrack  `json:"tracks,omitempty"`
 }
 
 // JWPlaylistSource is a media source entry.
@@ -27,15 +26,8 @@ type JWPlaylistTrack struct {
 	Kind string `json:"kind"`
 }
 
-// JWPlaylistAdBreak is a scheduled ad break on a playlist item.
-type JWPlaylistAdBreak struct {
-	Offset string `json:"offset"`
-	Tag    string `json:"tag"`
-	Type   string `json:"type,omitempty"`
-}
-
 // BuildJWPlaylistFeed builds the JW Player playlist JSON for a single video.
-func BuildJWPlaylistFeed(title, slug, posterURL, playlistM3U8, spriteVttURL, vastURL string) JWPlaylistFeed {
+func BuildJWPlaylistFeed(title, slug, posterURL, playlistM3U8, spriteVttURL string) JWPlaylistFeed {
 	item := JWPlaylistItem{
 		Title:   title,
 		MediaID: slug,
@@ -50,14 +42,6 @@ func BuildJWPlaylistFeed(title, slug, posterURL, playlistM3U8, spriteVttURL, vas
 		item.Tracks = []JWPlaylistTrack{{
 			File: spriteVttURL,
 			Kind: "thumbnails",
-		}}
-	}
-
-	if vastURL != "" {
-		item.AdSchedule = []JWPlaylistAdBreak{{
-			Offset: "pre",
-			Tag:    vastURL,
-			Type:   "linear",
 		}}
 	}
 

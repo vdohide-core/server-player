@@ -10,11 +10,8 @@ import (
 	"server-player/internal/services"
 )
 
-// EmbedData holds data passed to the embed template
 type EmbedData struct {
 	Title        string
-	CustomCss    template.CSS
-	CustomJs     template.HTML
 	PlayerConfig template.JS
 }
 
@@ -60,8 +57,6 @@ func (h *Handler) Embed(w http.ResponseWriter, r *http.Request) {
 
 	data := EmbedData{
 		Title:        resolved.File.Name,
-		CustomCss:    template.CSS(""),
-		CustomJs:     template.HTML(""),
 		PlayerConfig: template.JS(configJSON),
 	}
 

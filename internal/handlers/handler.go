@@ -3,7 +3,6 @@ package handlers
 import (
 	"embed"
 	"html/template"
-	"io/fs"
 	"log"
 	"net/http"
 	"strconv"
@@ -15,9 +14,6 @@ import (
 
 //go:embed templates/*.html
 var templatesFS embed.FS
-
-//go:embed static
-var staticEmbedFS embed.FS
 
 var templates *template.Template
 
@@ -40,15 +36,6 @@ func InitTemplates() error {
 	return nil
 }
 
-// GetStaticFS returns the HTTP file system for static files, rooted at "static"
-func GetStaticFS() http.FileSystem {
-	fsys, err := fs.Sub(staticEmbedFS, "static")
-	if err != nil {
-		panic(err)
-	}
-	return http.FS(fsys)
-}
-
 // ─── Domain/Space Validation ──────────────────────────────────────────────────
 
 // CheckDomainSpace validates if the request domain allows accessing the target space.
@@ -62,12 +49,10 @@ func CheckDomainSpace(r *http.Request, targetSpaceID *string) bool {
 		hasSpace := domain.SpaceID != nil && *domain.SpaceID != ""
 		hasCreator := domain.CreatorID != nil && *domain.CreatorID != ""
 
-		// System domain (no SpaceID and no CreatorID) can fetch any file
 		if !hasSpace && !hasCreator {
 			return true
 		}
 
-		// Workspace domain (has SpaceID)
 		if hasSpace {
 			tSpace := ""
 			if targetSpaceID != nil {
@@ -79,9 +64,6 @@ func CheckDomainSpace(r *http.Request, targetSpaceID *string) bool {
 			return true
 		}
 
-		// Legacy user domain (has CreatorID but no SpaceID)
-		// We reject it because we can't verify CreatorID across all handlers (like video.go uses Media)
-		// and we are enforcing the new Workspace-based system.
 		return false
 	}
 	return true
@@ -89,7 +71,6 @@ func CheckDomainSpace(r *http.Request, targetSpaceID *string) bool {
 
 // ─── Not-Found Helpers ────────────────────────────────────────────────────────
 
-// notFoundImage200 holds the pre-resized 200x200 not-found placeholder image
 var notFoundImage200 []byte
 
 func init() {
@@ -102,7 +83,6 @@ func init() {
 	}
 }
 
-// imageNotFound sends the 200x200 "not found" placeholder PNG
 func imageNotFound(w http.ResponseWriter, status int) {
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Content-Length", strconv.Itoa(len(notFoundImage200)))
@@ -111,7 +91,6 @@ func imageNotFound(w http.ResponseWriter, status int) {
 	w.Write(notFoundImage200)
 }
 
-// isImagePath checks if the URL path looks like an image request
 func isImagePath(path string) bool {
 	lower := strings.ToLower(path)
 	for _, ext := range []string{".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg", ".ico", ".avif"} {
@@ -122,9 +101,6 @@ func isImagePath(path string) bool {
 	return false
 }
 
-// sendNotFound picks the right error format based on the request path:
-// - image paths → PNG placeholder
-// - everything else → XML NoSuchKey
 func sendNotFound(w http.ResponseWriter, r *http.Request, status int) {
 	if isImagePath(r.URL.Path) {
 		imageNotFound(w, status)
@@ -135,7 +111,7 @@ func sendNotFound(w http.ResponseWriter, r *http.Request, status int) {
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
-// Home dispatches requests to the appropriate handler
+// Home dispatches content proxy requests (stream files, sprites).
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
@@ -145,18 +121,10 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch {
-	case strings.HasPrefix(path, "/vast/"):
-		h.Vast(w, r)
-	case strings.HasSuffix(path, "/playlist.m3u8"):
-		HandleNotFound(w, r)
-	case strings.HasSuffix(path, "/video.m3u8"):
-		HandleNotFound(w, r)
 	case strings.HasSuffix(path, "/sprite/sprite.vtt"):
 		h.HandleSpriteVTT(w, r)
 	case strings.Contains(path, "/sprite/") && strings.HasSuffix(path, ".jpg"):
 		h.HandleSpriteImage(w, r)
-	case strings.HasPrefix(path, "/thumb/") && strings.HasSuffix(path, ".jpg"):
-		HandleNotFound(w, r)
 	default:
 		h.StreamFile(w, r)
 	}

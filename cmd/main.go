@@ -7,14 +7,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"server-player/internal/config"
 	"server-player/internal/db/database"
 	"server-player/internal/handlers"
 	"server-player/internal/logger"
 	"server-player/internal/middleware"
 	"server-player/internal/services"
-	"strings"
 	"syscall"
 	"time"
 
@@ -54,45 +52,16 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/embed/", h.Embed)
-
 	mux.HandleFunc("/playlist/", h.PlaylistJSON)
-
-	mux.HandleFunc("/image/", h.ImageAdsJSON)
-	mux.HandleFunc("/script/", h.ScriptAdsJSON)
-
-	staticFS := handlers.GetStaticFS()
-	fileServer := http.FileServer(staticFS)
+	mux.HandleFunc("/advert/", h.AdvertJSON)
+	mux.HandleFunc("/favicon.ico", handlers.Favicon)
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"status":"ok","service":"server-player"}`)
 	})
 
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-
-		if path == "/" {
-			handlers.HandleNotFound(w, r)
-			return
-		}
-
-		f, err := staticFS.Open(path)
-		if err == nil {
-			stat, _ := f.Stat()
-			f.Close()
-			if !stat.IsDir() {
-				ext := strings.ToLower(filepath.Ext(path))
-				if ext == ".js" || ext == ".css" {
-					w.Header().Set("Cache-Control", "no-store")
-					w.Header().Set("CDN-Cache-Control", "max-age=2592000")
-				}
-				fileServer.ServeHTTP(w, r)
-				return
-			}
-		}
-
-		h.Home(w, r)
-	})
+	mux.HandleFunc("/", h.Home)
 
 	server := &http.Server{
 		Addr:    ":" + port,
@@ -113,9 +82,8 @@ func main() {
 	log.Printf("🌐 Server listening on http://localhost:%s", port)
 	log.Printf("📍 Endpoints:")
 	log.Printf("   GET /embed/{fileSlug}          - Video player embed page")
-	log.Printf("   GET /playlist/{fileSlug}.json     - JW Player playlist feed")
-	log.Printf("   GET /image/{adSlug}.json          - Image ad feed")
-	log.Printf("   GET /script/{adSlug}.json         - Script ad feed")
+	log.Printf("   GET /playlist/{fileSlug}.json  - JW Player playlist feed")
+	log.Printf("   GET /advert/{adSlug}.json      - Unified advert feed")
 	log.Printf("   GET /health                    - Health check")
 	log.Printf("   GET /{slug}.{ext}              - Proxy stream files")
 

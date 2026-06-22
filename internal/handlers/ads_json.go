@@ -9,26 +9,15 @@ import (
 	"server-player/internal/services"
 )
 
-// ImageAdsJSON handles GET /image/{adSlug}.json — image overlay ad feed.
-func (h *Handler) ImageAdsJSON(w http.ResponseWriter, r *http.Request) {
-	adSlug := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/image/"), ".json")
+// AdvertJSON handles GET /advert/{adSlug}.json — unified advert feed (script, image, video).
+func (h *Handler) AdvertJSON(w http.ResponseWriter, r *http.Request) {
+	adSlug := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/advert/"), ".json")
 	if adSlug == "" || strings.Contains(adSlug, "/") {
 		writeAdsFeedError(w, http.StatusNotFound, "not found")
 		return
 	}
 
-	writeAdsFeedJSON(w, services.BuildImageAdsFeed(adSlug))
-}
-
-// ScriptAdsJSON handles GET /script/{adSlug}.json — script ad feed.
-func (h *Handler) ScriptAdsJSON(w http.ResponseWriter, r *http.Request) {
-	adSlug := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/script/"), ".json")
-	if adSlug == "" || strings.Contains(adSlug, "/") {
-		writeAdsFeedError(w, http.StatusNotFound, "not found")
-		return
-	}
-
-	writeAdsFeedJSON(w, services.BuildScriptAdsFeed(adSlug))
+	writeAdsFeedJSON(w, services.BuildAdvertFeed(adSlug))
 }
 
 func writeAdsFeedJSON(w http.ResponseWriter, v interface{}) {

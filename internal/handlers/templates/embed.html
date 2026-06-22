@@ -3,36 +3,17 @@
 
 <head>
     <meta charset="utf-8" />
-    <script type="text/javascript">
-        // ตรวจสอบภาษาของเบราว์เซอร์ผู้ใช้
-        const userLang = (navigator.language || navigator.userLanguage).toLowerCase();
-        if (userLang.startsWith('th')) {
-            document.documentElement.lang = 'th';
-        } else {
-            document.documentElement.lang = 'en';
-        }
-    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="/favicon.ico" />
+    <title>{{.Title}}</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23ff8800'/%3E%3Cpath fill='white' d='M12 9v14l11-7z'/%3E%3C/svg%3E" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
 
-    <!-- Preconnect to external domains -->
     <link rel="preconnect" href="https://ssl.p.jwpcdn.com" crossorigin />
     <link rel="dns-prefetch" href="https://ssl.p.jwpcdn.com" />
+    <link rel="preconnect" href="https://cdn.fembed.co" crossorigin />
 
-    <!-- JWPlayer -->
-    <script async src="https://ssl.p.jwpcdn.com/player/v/8.46.1/jwplayer.js"></script>
-
-    <link rel="stylesheet" type="text/css" href="/css/jw-player.css" />
-    <link rel="stylesheet" type="text/css" href="/css/continue.min.css" />
-    <!-- Player Configuration -->
-    <script type="text/javascript">
-        window.playerConfig = {{.PlayerConfig }};
-        const base_color = window.playerConfig.baseColor || "#ff8800";
-        document.documentElement.style.setProperty("--base-color", base_color);
-    </script>
-
-    <style>{{.CustomCss}}</style>
-    <title>{{ .Title }}</title>
+    <link rel="stylesheet" href="https://cdn.fembed.co/2.0/player.bundle.min.css" />
+    <script src="https://ssl.p.jwpcdn.com/player/v/8.46.2/jwplayer.js"></script>
 </head>
 
 <body>
@@ -44,17 +25,16 @@
             </svg>
         </div>
     </div>
-    <!-- Core Player (playlist.json feed) -->
-    <script defer src="/js/jw-playlist.js"></script>
 
-    <!-- Optional Modules (ลบ/comment ออกเพื่อปิดฟีเจอร์) -->
-    <script src="/js/prewarm.js"></script> <!-- HLS CDN prewarm lookahead -->
-    <script src="/js/bandwidth.js"></script> <!-- Network speed & bandwidth UI -->
-    <script src="/js/analytics.js"></script> <!-- Watch time & bandwidth reporting -->
-    <script src="/js/advert-image.js"></script> <!-- Image ad overlay -->
-    <script src="/js/advert-script.js"></script> <!-- Script ad injection -->
+    <script>
+        window.playerConfig = {{.PlayerConfig}};
+        document.documentElement.style.setProperty(
+            "--base-color",
+            window.playerConfig.baseColor || "#ff8800"
+        );
+    </script>
 
-    <!-- {{.CustomJs}} -->
+    <script src="https://cdn.fembed.co/2.0/player.min.js"></script>
 </body>
 
 </html>

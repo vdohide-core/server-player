@@ -39,7 +39,6 @@ func (h *Handler) PlaylistJSON(w http.ResponseWriter, r *http.Request) {
 		resolved.Content.PosterURL,
 		resolved.Content.PlaylistM3U8,
 		resolved.Content.SpriteVttURL,
-		resolved.VastURL,
 	)
 
 	data, err := json.Marshal(feed)

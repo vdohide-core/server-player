@@ -21,29 +21,19 @@ type ProcessingData struct {
 	Percent float64
 }
 
-// EmbedContent holds resolved media URLs for a file embed.
+// EmbedContent holds resolved media URLs for playlist feed.
 type EmbedContent struct {
-	ReqProto       string
-	PlaylistHost   string
-	StaticHost     string
-	PreviewHost    string
-	PosterURL      string
-	PlaylistM3U8   string
-	SpriteVttURL   string
-	PlaylistFeedURL string
+	PosterURL    string
+	PlaylistM3U8 string
+	SpriteVttURL string
 }
 
 // EmbedResolveResult is the shared embed / playlist feed resolution output.
 type EmbedResolveResult struct {
-	File         models.File
-	Slug         string
-	Domain       *models.CustomDomain
-	Medias       map[string]string
-	PlanType     string
-	Content      EmbedContent
-	Ads          services.ResolvedAds
-	VastURL      string
-	EmbedConfig  services.EmbedPlayerConfig
+	File        models.File
+	Slug        string
+	Content     EmbedContent
+	EmbedConfig services.EmbedPlayerConfig
 }
 
 // EmbedResolveError describes a failed embed resolution.
@@ -287,8 +277,6 @@ func (h *Handler) resolveEmbed(r *http.Request, slug string) (*EmbedResolveResul
 		}
 	}
 
-	playlistFeedURL := fmt.Sprintf("%s://%s/playlist/%s.json", reqProto, r.Host, slug)
-
 	planType := "hobby"
 	if file.SpaceID != nil && *file.SpaceID != "" {
 		if plan := services.GetSpacePlan(*file.SpaceID); plan != nil {
@@ -297,61 +285,53 @@ func (h *Handler) resolveEmbed(r *http.Request, slug string) (*EmbedResolveResul
 	}
 
 	baseColor := "#ff6700"
+	autostart := false
+	mute := false
 	continuePlay := true
 	continuePlayArk := false
 	if domain != nil && domain.Player != nil {
 		if domain.Player.BaseColor != "" {
 			baseColor = domain.Player.BaseColor
 		}
+		autostart = domain.Player.AutoPlay
+		mute = domain.Player.MuteSound
 		continuePlay = domain.Player.ContinuePlay
 		continuePlayArk = domain.Player.ContinuePlayArk
 	} else {
 		globalSettings := services.GetPlayerSettings()
 		baseColor = globalSettings.BaseColor
+		autostart = globalSettings.AutoPlay
+		mute = globalSettings.MuteSound
 		continuePlay = globalSettings.ContinuePlay
 		continuePlayArk = globalSettings.ContinuePlayArk
 	}
 
 	adSlug := services.ResolveAdSlug(planType, domain, file.SpaceID)
 
-	ads := services.ResolveAdsFromPlan(planType, domain)
-	vastURL := ""
-	if ads.VastEnabled {
-		adsBaseURL := reqProto + "://" + staticHost
-		if adSlug == "hobby" {
-			vastURL = adsBaseURL + "/vast/hobby.xml"
-		} else if adSlug != "" {
-			vastURL = adsBaseURL + fmt.Sprintf("/vast/%s.xml", adSlug)
-		}
-	}
-
 	embedConfig := services.EmbedPlayerConfig{
-		AdSlug:              adSlug,
-		BaseColor:           baseColor,
-		ContinuePlayback:    continuePlay,
-		ContinuePlaybackArk: continuePlayArk,
-		Slug:                slug,
-		Static:              staticHost,
+		Lang:      "auto",
+		Adverts:   adSlug,
+		BaseColor: baseColor,
+		Autostart: autostart,
+		Mute:      mute,
+		ContinuePlayBack: services.EmbedContinuePlayback{
+			Enable:     continuePlay,
+			Ark:        continuePlayArk,
+			AutoResume: false,
+			Countdown:  20,
+		},
+		Slug:        slug,
+		AdvertLocal: true,
 	}
 
 	return &EmbedResolveResult{
-		File:     file,
-		Slug:     slug,
-		Domain:   domain,
-		Medias:   medias,
-		PlanType: planType,
-		Ads:      ads,
-		VastURL:  vastURL,
+		File:        file,
+		Slug:        slug,
 		EmbedConfig: embedConfig,
 		Content: EmbedContent{
-			ReqProto:        reqProto,
-			PlaylistHost:    playlistHost,
-			StaticHost:      staticHost,
-			PreviewHost:     previewHost,
-			PosterURL:       posterURL,
-			PlaylistM3U8:    playlistM3U8,
-			SpriteVttURL:    spriteVttURL,
-			PlaylistFeedURL: playlistFeedURL,
+			PosterURL:    posterURL,
+			PlaylistM3U8: playlistM3U8,
+			SpriteVttURL: spriteVttURL,
 		},
 	}, nil
 }
