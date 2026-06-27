@@ -5,8 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{{.Title}}</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23ff8800'/%3E%3Cpath fill='white' d='M12 9v14l11-7z'/%3E%3C/svg%3E" />
-    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/favicon.ico" />
 
     <link rel="preconnect" href="https://ssl.p.jwpcdn.com" crossorigin />
     <link rel="dns-prefetch" href="https://ssl.p.jwpcdn.com" />
@@ -20,18 +19,14 @@
     <div id="player">
         <div class="load_player">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
-                <path
-                    d="M120 186.667a66.667 66.667 0 010-133.333V40a80 80 0 1080 80h-13.333A66.846 66.846 0 01120 186.667z" />
+                <path d="M120 186.667a66.667 66.667 0 010-133.333V40a80 80 0 1080 80h-13.333A66.846 66.846 0 01120 186.667z" />
             </svg>
         </div>
     </div>
 
     <script>
         window.playerConfig = {{.PlayerConfig}};
-        document.documentElement.style.setProperty(
-            "--base-color",
-            window.playerConfig.baseColor || "#ff8800"
-        );
+        document.documentElement.style.setProperty("--base-color", window.playerConfig.baseColor || "#ff8800");
     </script>
 
     <script src="https://cdn.fembed.co/2.0/player.min.js"></script>

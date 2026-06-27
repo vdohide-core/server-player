@@ -308,6 +308,11 @@ func (h *Handler) resolveEmbed(r *http.Request, slug string) (*EmbedResolveResul
 
 	adSlug := services.ResolveAdSlug(planType, domain, file.SpaceID)
 
+	advertHost := strings.Split(requestHost(r), ":")[0]
+	if staticHost != "" {
+		advertHost = staticHost
+	}
+
 	embedConfig := services.EmbedPlayerConfig{
 		Lang:      "auto",
 		Adverts:   adSlug,
@@ -321,7 +326,8 @@ func (h *Handler) resolveEmbed(r *http.Request, slug string) (*EmbedResolveResul
 			Countdown:  20,
 		},
 		Slug:        slug,
-		AdvertLocal: true,
+		AdvertLocal: false,
+		Static:      advertHost,
 	}
 
 	return &EmbedResolveResult{
